@@ -8,8 +8,14 @@ class TopicSpec(BaseModel):
 
 
 class CameraTopics(BaseModel):
-    rgb_image_raw: TopicSpec = TopicSpec(
+    k4a_rgb: TopicSpec = TopicSpec(
         name="/k4a/rgb/image_raw", msg_type="sensor_msgs/msg/Image"
+    )
+    realsense_color: TopicSpec = TopicSpec(
+        name="/camera/camera/color/image_raw", msg_type="sensor_msgs/msg/Image"
+    )
+    secondary_color: TopicSpec = TopicSpec(
+        name="/camera/color/image_raw", msg_type="sensor_msgs/msg/Image"
     )
 
 

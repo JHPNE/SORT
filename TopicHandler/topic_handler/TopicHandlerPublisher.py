@@ -1,6 +1,6 @@
 import importlib
 from rclpy.node import Node
-from TopicList import TopicSpec 
+from topic_handler.TopicList import TopicSpec
 
 
 def resolve_msg_type(msg_type: str):
