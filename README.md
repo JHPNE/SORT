@@ -3,6 +3,7 @@ Separation-Oriented Recognition &amp; Tagging
 
 ## ROS2 Basics
 ### 1. Creating a package for ros2:
+Note: package names should start with a lower case letter and only contain lower case letters, digits, underscores, and dashes.
 
 ```
 ros2 pkg create --build-type ament_python --license Apache-2.0 <package-name>
@@ -38,3 +39,11 @@ ros2 run <package-name> <package-entry-point>
 
 ### Services
 Services are done similarly but are run with a `launch` tag. We will figure out how this is done once we need it. 
+
+### ROS2 Helpful Commands
+```
+ros2 node list
+ros2 topic list
+ros2 service list
+ros2 action list
+```
