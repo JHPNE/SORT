@@ -1,7 +1,7 @@
 import importlib
 from rclpy.node import Node
 from typing import Callable
-from topic_list import TopicSpec
+from topic_handler.TopicList import TopicSpec
 
 
 def resolve_msg_type(msg_type: str):
