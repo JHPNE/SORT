@@ -1,25 +1,27 @@
+import os
 import cv2
 import rclpy
 from rclpy.node import Node
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 
-from topic_handler.TopicList import TopicList, TopicSpec
+from topic_handler.TopicList import TopicList
 from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
-from vision_module.AprilTagDetector import AprilTagDetector
 
-class CameraViewer(Node):
+
+class TestCamera(Node):
     def __init__(self):
-        super().__init__("camera_viewer")
+        super().__init__('camera_viewer')
 
         self.bridge = CvBridge()
         self.topics = TopicList()
 
-        self.frames: dict[str, "cv2.typing.MatLike"] = {}
+        self.output_dir = os.path.expanduser('~/camera_snapshots')
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        self.saved = set()  # tracks which cameras already got their one-time snapshot
+
         self._subs = []
-
-        self.tag_detector = AprilTagDetector(tag_family='DICT_APRILTAG_36h11')
-
         cam_topics = {
             'k4a_rgb': self.topics.camera.k4a_rgb,
             'realsense_color': self.topics.camera.realsense_color,
@@ -31,37 +33,35 @@ class CameraViewer(Node):
                 node=self,
                 topic_spec=spec,
                 callback=self._make_callback(name),
-                qos=10
+                qos=10,
             )
             self._subs.append(handler)
 
-    
     def _make_callback(self, cam_name: str):
         def callback(msg: Image):
+            if cam_name in self.saved:
+                return  
+
             try:
                 cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             except CvBridgeError as e:
-                self.get_logger().error(f'cv bridge error on  {window_name}: {e}')
+                self.get_logger().error(f'cv_bridge error on {cam_name}: {e}')
                 return
-            self.frames[cam_name] = cv_image
 
-            corners, ids, _ = self.tag_detector.detect(cv_image)
-            
-            if ids is not None:
-                tag_ids = ids.flatten().tolist()
-                self.get_logger().info(f'[{cam_name}] detected tags: {tag_ids}')
-            else:
-                self.get_logger().info(f'[{cam_name}] searching for tags, none found yet', throttle_duration_sec=2.0)
+            filepath = os.path.join(self.output_dir, f'{cam_name}.png')
+            cv2.imwrite(filepath, cv_image)
+            self.saved.add(cam_name)
+            self.get_logger().info(f'Saved snapshot: {filepath}')
+
+            if len(self.saved) == len(self._subs):
+                self.get_logger().info('All camera snapshots captured.')
+
         return callback
-    
-    def destroy_node(self):
-        cv2.destroyAllWindows()
-        super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraViewer()
+    node = TestCamera()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
