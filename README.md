@@ -6,11 +6,15 @@ Separation-Oriented Recognition &amp; Tagging
 ### Bash
 ```
 sudo ufw disable
+export ROS_DOMAIN_ID=2
 ```
 
 ### ROS2
 
 ```
+ros2 interface show trajectory_msgs/msg/JointTrajectory
+ros2 topic info /joint_trajectory_controller/joint_trajectory --verbose
+
 ros2 node list
 ros2 topic list
 ros2 service list
