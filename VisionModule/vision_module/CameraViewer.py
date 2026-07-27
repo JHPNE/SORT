@@ -6,11 +6,18 @@ from sensor_msgs.msg import Image, CameraInfo
 
 from topic_handler.TopicList import TopicList, TopicSpec
 from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
+from typing import String
 
 from vision_module.AprilTagDetector import AprilTagDetector
 from vision_module.CameraInstrinsics import get_intrinsics, intrinsics_from_camera_info
+from vision_module import TagMessage
 
 TAG_SIZE_M = 0.055
+DETECTION_TOPIC_NS = "/vision/tag_detections"
+
+
+CAMERAS = ["k4a_rgb", "realsense_color", "secondary_color"]
+
 
 def _topic_name(spec) -> str:
     """TopicSpec -> topic string. Adjust if your TopicSpec names the field
@@ -21,17 +28,23 @@ def _topic_name(spec) -> str:
             return value
     return str(spec)
 
+
 class CameraViewer(Node):
-    def __init__(self, use_camera_info: bool = True):
+    def __init__(self):
         super().__init__("camera_viewer")
+
+        self.declare_parameter("tag_size_m", TAG_SIZE_M)
+        self.tag_size = float(self.get_parameter("tag_size_m").value)
 
         self.bridge = CvBridge()
         self.topics = TopicList()
 
-        self.frames: dict[str, "cv2.typing.MatLike"] = {}
-        self._subs = []
-        self._info_subs = []
-        self._have_instrinsics: dict[str, bool] = {}
+        self.frames = {}
+        self._subs, self._info_subs = [], []
+        self._have_instrinsics = {}
+        self.detectors = {}
+        self.pubs = {}
+        self.frame_ids = {}
 
         cam_topics = {
             'k4a_rgb': self.topics.camera.k4a_rgb,
@@ -39,95 +52,76 @@ class CameraViewer(Node):
             'secondary_color': self.topics.camera.secondary_color,
         }
 
-        self.detectors: dict[str, AprilTagDetector] = {}
-
-        for name in cam_topics:
-            det = AprilTagDetector(tag_family="tag36h11", tag_size_m=TAG_SIZE_M)
+        for name, spec in cam_topics.items():
+            det = AprilTagDetector("tag36h11", tag_size_m=self.tag_size)
             try:
                 K, D = get_intrinsics(name)
                 det.set_camera_info(K, D)
-                self.get_logger().info(f"[{name}] using preset intrinsics")
             except KeyError:
-                self.get_logger().warn(f"[{name}] no intrinsics preset, no pose")
+                self.get_logger().warn(f"[{name}] no instrinsics preset")
+
             self.detectors[name] = det
-            self._have_intrinsics[name] = False
+            self._have_instrinsics[name] = False
+            self.frame_ids[name] = f"{name}_optical_frame"
 
-        for name, spec in cam_topics.items():
-            handler = TopicHandlerSubscriber(
-                node=self,
-                topic_spec=spec,
-                callback=self._make_callback(name),
-                qos=10,
-            )
+            self.pubs[name] = self.create_publisher(
+                String, f"{DETECTION_TOPIC_NS}/{name}", 10)
 
-            self._subs.append(handler)
+            self._subs.append(TopicHandlerSubscriber(
+                node=self, topic_spec=spec,
+                callback=self._make_callback(name), qos=10))
+ 
+            info_topic = _topic_name(spec).rsplit("/", 1)[0] + "/camera_info"
+            self._info_subs.append(self.create_subscription(
+                CameraInfo, info_topic, self._make_info_callback(name), 10))
 
-            if use_camera_info:
-                info_topic = _topic_name(spec).rsplit("/", 1)[0] + "camera/info"
-                self._info_subs.append(self.create_subscription(
-                    CameraInfo, info_topic,
-                    self._make_info_callback(name), 10))
+        self.get_logger().info(
+            f"publishing schema v{TagMessage.SCHEMA_VERSION} on "
+            f"{DETECTION_TOPIC_NS}/<camera>")
 
-
-    def _make_info_callback(self, cam_name: str):
-        def callback(msg: CameraInfo):
-            if self._have_intrinsics[cam_name]:
-                return
-            K, D = intrinsics_from_camera_info(msg)
-            self.detectors[cam_name].set_camera_info(K, D)
-            self._have_intrinsics[cam_name] = True
-            self.get_logger().info(
-                f"[{cam_name}] intrinsics from camera_info: "
-                f"fx={K[0, 0]:.1f} fy={K[1, 1]:.1f} "
-                f"cx={K[0, 2]:.1f} cy={K[1, 2]:.1f}")
-        return callback
-
-    def _make_callback(self, cam_name: str):
+    def _make_info_callback(self, name: str):
         def callback(msg: Image):
             try:
-                cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+                img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             except CvBridgeError as e:
-                self.get_logger().error(f"cv bridge error on {cam_name}: {e}")
-                return
- 
-            detector = self.detectors[cam_name]
-            detections = detector.detect(cv_image, estimate_pose=True,
-                                         max_reprojection_error_px=4.0)
- 
+                self.get_logger().error(f"cv bridge error on {name}: {e}")
+                return 
+
+            detector = self.detectors[name]
+            detections = detector.detect(img, estimate_pose=True, max_reprojection_error_px=4.0)
+
+            h, w = img.shape[:2]
+            stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+            out = String()
+            out.data = TagMessage.encode(
+                camera=name,
+                frame_id=msg.header.frame_id or self.frame_ids[name],
+                stamp=stamp, width=w, height=h,
+                detections=detections,
+                K=detector.camera_matrix, D=detector.dist_coeffs)
+            self.pubs[name].publish(out)
+
             if detections:
-                for det in detections:
-                    if det.has_pose:
-                        x, y, z = det.position_m
-                        self.get_logger().info(
-                            f"[{cam_name}] tag {det.tag_id} "
-                            f"xyz=({x:+.3f}, {y:+.3f}, {z:+.3f}) m "
-                            f"d={det.distance_m:.3f} m "
-                            f"rms={det.reprojection_error:.2f} px")
-                    else:
-                        self.get_logger().info(
-                            f"[{cam_name}] tag {det.tag_id} (no pose, "
-                            f"missing intrinsics or tag size)")
-            else:
                 self.get_logger().info(
-                    f"[{cam_name}] searching for tags, none found yet",
-                    throttle_duration_sec=2.0)
+                    f"[{name}] tags {sorted(d.tag_id for d in detections)}",
+                    throttle_duration_sec=1.0)
+            else:
+                self.get_logger().info(f"[{name}] no tags",
+                                       throttle_duration_sec=2.0)
  
         return callback
-    
+
     def _render(self):
         for name, frame in self.frames.items():
             cv2.imshow(name, frame)
-        cv2.waitKey(1)
+            cv2.waitKey(1)
  
     def destroy_node(self):
         cv2.destroyAllWindows()
         super().destroy_node()
-        
-    def destroy_node(self):
-        cv2.destroyAllWindows()
-        super().destroy_node()
-
-
+ 
+ 
 def main(args=None):
     rclpy.init(args=args)
     node = CameraViewer()
@@ -138,7 +132,7 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-
-if __name__ == '__main__':
+ 
+ 
+if __name__ == "__main__":
     main()
