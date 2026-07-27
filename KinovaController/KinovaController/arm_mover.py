@@ -3,8 +3,8 @@ from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import time
 
-from topic_handler.TopicList import TopicList, TopicSpec
-from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
+from topic_handler.TopicList import TopicList
+from topic_handler.TopicHandlerPublisher import TopicHandlerPublisher
 
 class KinovaMover(Node):
     def __init__(self):
