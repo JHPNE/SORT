@@ -22,6 +22,9 @@ class ArmTopics(BaseModel):
     joint_trajectory: TopicSpec = TopicSpec(
         name="/joint_trajectory_controller/joint_trajectory", msg_type="trajectory_msgs/JointTrajectory"
     )
+    publish_test: TopicSpec = TopicSpec(
+        name="/publish_test", msg_type="trajectory_msgs/JointTrajectory"
+    )
 
 class TopicList(BaseModel):
     camera: CameraTopics = CameraTopics()

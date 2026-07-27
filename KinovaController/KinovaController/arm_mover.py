@@ -11,13 +11,9 @@ class KinovaMover(Node):
         super().__init__('kinova_mover')
         
         self.topics = TopicList()
-        arm_topics = {
-            'joint_trajectory': self.topics.arm.joint_trajectory
-        }
-
         self._publisher = TopicHandlerPublisher(
             node=self,
-            topic_spec=arm_topics.joint_trajectory.spec,
+            topic_spec=self.topics.arm.joint_trajectory,
             qos=10
         )
 
@@ -26,13 +22,13 @@ class KinovaMover(Node):
         #     '/joint_trajectory_controller/joint_trajectory', 
         #     10
         # )
-        
+
         # self.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
         # time.sleep(2.0)
         # self.move_arm_to_safe_pose()
 
-    def move_arm_to(self, joint_positions, duration=10):
-        if joint_positions is Null:
+    def move_arm_to(self, joint_positions=None, duration=10):
+        if joint_positions is None:
             joint_positions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         
         if len(joint_positions) != 6:
@@ -72,17 +68,18 @@ def main(args=None):
     node.destroy_node()
     rclpy.shutdown()
 
-def test_move_kinova_arm(joint_positions):
+def test_move_kinova_arm(joint_positions=None, args=None):
     rclpy.init(args=args)
     node = KinovaMover()
     
     node.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
     time.sleep(2.0)
-    node.move_arm_to([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    node.move_arm_to(joint_positions)
     
+    time.sleep(1.0)
     node.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':
     # main()
-    test_move_kinova_arm
+    test_move_kinova_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
