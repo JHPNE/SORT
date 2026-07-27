@@ -67,12 +67,15 @@ class TagFusionNode(Node):
         self.declare_parameter("max_sync_dt", 0.040)
         self.declare_parameter("max_age", 0.30)
 
+        self.declare_parameter("trust_stamps", True)
+
         self.camera_names = list(self.get_parameter("camera_names").value)
         self.ref_frame = self.get_parameter("reference_frame").value
         self.tag_size = float(self.get_parameter("tag_size_m").value)
         self.use_tf = bool(self.get_parameter("use_tf").value)
         self.max_sync_dt = float(self.get_parameter("max_sync_dt").value)
         self.max_age = float(self.get_parameter("max_age").value)
+        self.trust_stamps = bool(self.get_parameter("trust_stamps").value)
 
         models = {n: CameraModel(n, np.eye(3), np.zeros((5, 1)),
                                  EXTRINSICS.get(n, np.eye(4)))
@@ -82,6 +85,8 @@ class TagFusionNode(Node):
         # camera -> (stamp, [TagObservation], frame_id)
         self._buf: Dict[str, Tuple[float, List[TagObservation], str]] = {}
         self._got_intrinsics = {n: False for n in self.camera_names}
+        self._rx = {n: 0 for n in self.camera_names}
+        self._bad = {n: 0 for n in self.camera_names}
 
         self._subs = [
             self.create_subscription(
@@ -100,6 +105,15 @@ class TagFusionNode(Node):
             f"extrinsics from {'tf2' if self.use_tf else 'hardcoded'}, "
             f"schema v{TagMessage.SCHEMA_VERSION}")
 
+        if self.use_tf and self.ref_frame in self.camera_names:
+            self.get_logger().error(
+                f"reference_frame is '{self.ref_frame}', which is a CAMERA "
+                f"NAME, not a TF frame. Every tf2 lookup will fail. Pass a "
+                f"real frame, e.g. reference_frame:=base_link, or check "
+                f"'ros2 run tf2_tools view_frames'")
+ 
+        self.create_timer(2.0, self._diagnose)
+ 
         if not self.use_tf and all(
                 np.allclose(EXTRINSICS.get(n, np.eye(4)), np.eye(4))
                 for n in self.camera_names):
@@ -115,9 +129,12 @@ class TagFusionNode(Node):
             try:
                 packet = TagMessage.decode(msg.data)
             except TagMessage.SchemaMismatch as e:
+                self._bad[name] += 1
                 self.get_logger().error(f"[{name}] bad packet: {e}",
                                         throttle_duration_sec=5.0)
                 return
+            
+            self._rx[name] += 1
 
             if packet.has_intrinsics and not self._got_intrinsics[name]:
                 self.fuser.cameras[name].K = packet.K
@@ -127,6 +144,9 @@ class TagFusionNode(Node):
                 self.get_logger().info(
                     f"[{name}] intrinsics received, fx={packet.K[0, 0]:.1f}")
 
+            stamp = packet.stamp
+            if not self.trust_stamps:
+                stamp = self.get_clock().now().nanoseconds * 1e-9
             self._buf[name] = (packet.stamp,
                                TagMessage.to_observations(packet),
                                packet.frame_id)
@@ -154,6 +174,10 @@ class TagFusionNode(Node):
 
     def _tick(self):
         if not self._buf:
+            self.get_logger().warn(
+                f"no packets on {DETECTION_TOPIC_NS}/<camera>. Check with: "
+                f"ros2 topic hz {DETECTION_TOPIC_NS}/{self.camera_names[0]}",
+                throttle_duration_sec=5.0)
             return
         if self.use_tf:
             self._refresh_tf()
@@ -161,7 +185,13 @@ class TagFusionNode(Node):
         now = self.get_clock().now().nanoseconds * 1e-9
         newest = max(s for s, _, _ in self._buf.values())
         if now - newest > self.max_age:
-            return                              # everything is stale
+            self.get_logger().warn(
+                f"newest packet is {now - newest:+.2f}s old, above max_age="
+                f"{self.max_age}s. If that number is large and roughly "
+                f"constant, the image stamps and this node's clock disagree: "
+                f"run with trust_stamps:=false, and check use_sim_time on "
+                f"both nodes.", throttle_duration_sec=5.0)
+            return
 
         observations, skipped = [], []
         for name, (stamp, obs, _) in self._buf.items():
@@ -175,6 +205,9 @@ class TagFusionNode(Node):
                 f"outside {self.max_sync_dt * 1000:.0f} ms sync window: "
                 f"{skipped}", throttle_duration_sec=5.0)
         if not observations:
+            self.get_logger().info(
+                "packets are arriving and fresh, but contain no tags",
+                throttle_duration_sec=5.0)
             return
 
         for fused in self.fuser.fuse(observations):
@@ -189,6 +222,24 @@ class TagFusionNode(Node):
                 f"{','.join(fused.cameras)} "
                 f"xyz=({x:+.3f}, {y:+.3f}, {z:+.3f}){extra}",
                 throttle_duration_sec=0.5)
+    
+    def _diagnose(self):
+        """Periodic state dump. This is what tells you which stage is stuck."""
+        now = self.get_clock().now().nanoseconds * 1e-9
+        parts = []
+        for n in self.camera_names:
+            if self._rx[n] == 0:
+                parts.append(f"{n}: NO PACKETS"
+                             + (f" ({self._bad[n]} rejected)" if self._bad[n] else ""))
+                continue
+            stamp, obs, fid = self._buf.get(n, (0.0, [], ""))
+            extr = self.fuser.cameras[n].ref_T_cam
+            parts.append(
+                f"{n}: {self._rx[n]}pkt {len(obs)}tag age={now - stamp:+.2f}s "
+                f"K={'y' if self._got_intrinsics[n] else 'N'} "
+                f"extr={'identity' if np.allclose(extr, np.eye(4)) else 'set'} "
+                f"frame='{fid}'")
+        self.get_logger().info("STATUS  " + "  |  ".join(parts))
 
     def _publish(self, fused, stamp_sec: float):
         stamp = rclpy.time.Time(seconds=stamp_sec).to_msg()
