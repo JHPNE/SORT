@@ -20,9 +20,22 @@ class CameraTopics(BaseModel):
 
 class ArmTopics(BaseModel):
     joint_trajectory: TopicSpec = TopicSpec(
-        name="/joint_trajectory_controller/joint_trajectory", msg_type=""
+        name="/joint_trajectory_controller/joint_trajectory",
+        msg_type="trajectory_msgs/msg/JointTrajectory",
+    )
+
+class FeedbackTopics(BaseModel):
+    ha_lights: TopicSpec = TopicSpec(
+        name="/feedback/ha_lights", msg_type="std_msgs/msg/String"
+    )
+    audio_tts: TopicSpec = TopicSpec(
+        name="/tts/generate", msg_type="std_msgs/msg/String"
+    )
+    audio_set_voice: TopicSpec = TopicSpec(
+        name="/tts/set_voice", msg_type="std_msgs/msg/String"
     )
 
 class TopicList(BaseModel):
     camera: CameraTopics = CameraTopics()
     arm: ArmTopics = ArmTopics()
+    feedback: FeedbackTopics = FeedbackTopics()
