@@ -66,23 +66,23 @@ class KinovaMover(Node):
         # Nod down
         point1 = JointTrajectoryPoint()
         point1.positions = list(NOD_POSITION)
-        point1.positions[5] += 0.5  # Joint 2 (Wrist Pitch) 
-        point1.time_from_start.sec = 5
+        point1.positions[4] += 0.5  # Joint 2 (Wrist Pitch) 
+        point1.time_from_start.sec = 2
         msg.points.append(point1)
 
         # Nod up
         point2 = JointTrajectoryPoint()
         point2.positions = list(NOD_POSITION)
-        point2.positions[5] -= 0.5
-        point2.time_from_start.sec = 2
+        point2.positions[4] -= 0.5
+        point2.time_from_start.sec = 4
         msg.points.append(point2)
         
-        # # Nod down again
-        # point3 = JointTrajectoryPoint()
-        # point3.positions = list(HOME_POSITION)
-        # point3.positions[5] += 0.5
-        # point3.time_from_start.sec = 3
-        # msg.points.append(point3)
+        # Nod down again
+        point3 = JointTrajectoryPoint()
+        point3.positions = list(HOME_POSITION)
+        point3.positions[5] += 0.5
+        point3.time_from_start.sec = 6
+        msg.points.append(point3)
 
         # Back to Home
         # point4 = JointTrajectoryPoint()
