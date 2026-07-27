@@ -6,17 +6,23 @@ import time
 from topic_handler.TopicList import TopicList
 from topic_handler.TopicHandlerPublisher import TopicHandlerPublisher
 
-from .positions import HOME_POSITION, SAFE_POSE, NOD_POSITION
+from .positions import HOME_POSITION, NOD_POSITION
 
 class KinovaMover(Node):
     def __init__(self):
         super().__init__('kinova_mover')
         
         self.topics = TopicList()
-        self._publisher = TopicHandlerPublisher(
-            node=self,
-            topic_spec=self.topics.arm.joint_trajectory,
-            qos=10
+        # self._publisher = TopicHandlerPublisher(
+        #     node=self,
+        #     topic_spec=self.topics.arm.joint_trajectory,
+        #     qos=10
+        # )
+
+        self._publisher = self.create_publisher(
+            JointTrajectory, 
+            '/joint_trajectory_controller/joint_trajectory', 
+            10
         )
 
     def move_arm_to(self, joint_positions=None, duration=10):
@@ -33,7 +39,7 @@ class KinovaMover(Node):
         
         point = JointTrajectoryPoint()
         point.positions = joint_positions
-        point.time_from_start.sec = duration
+        point.time_from_start.sec = int(duration)
         
         msg.points.append(point)
         
@@ -59,42 +65,38 @@ class KinovaMover(Node):
         
         # Nod down
         point1 = JointTrajectoryPoint()
-        point1.positions = list(HOME_POSITION)
-        point1.positions[1] += 0.5  # Joint 2 (Wrist Pitch) 
-        point1.time_from_start.sec = 1
+        point1.positions = list(NOD_POSITION)
+        point1.positions[5] += 0.5  # Joint 2 (Wrist Pitch) 
+        point1.time_from_start.sec = 5
         msg.points.append(point1)
 
         # Nod up
         point2 = JointTrajectoryPoint()
-        point2.positions = list(HOME_POSITION)
-        point2.positions[1] -= 0.3
+        point2.positions = list(NOD_POSITION)
+        point2.positions[5] -= 0.5
         point2.time_from_start.sec = 2
         msg.points.append(point2)
         
-        # Nod down again
-        point3 = JointTrajectoryPoint()
-        point3.positions = list(HOME_POSITION)
-        point3.positions[1] += 0.5
-        point3.time_from_start.sec = 3
-        msg.points.append(point3)
+        # # Nod down again
+        # point3 = JointTrajectoryPoint()
+        # point3.positions = list(HOME_POSITION)
+        # point3.positions[5] += 0.5
+        # point3.time_from_start.sec = 3
+        # msg.points.append(point3)
 
         # Back to Home
-        point4 = JointTrajectoryPoint()
-        point4.positions = list(HOME_POSITION)
-        point4.time_from_start.sec = 4
-        msg.points.append(point4)
+        # point4 = JointTrajectoryPoint()
+        # point4.positions = list(HOME_POSITION)
+        # point4.time_from_start.sec = 10
+        # msg.points.append(point4)
+        
 
         self.get_logger().info('Sende Nod-Befehl (Nicken) an den Kinova Gen3...')
         self._publisher.publish(msg)
         self.get_logger().info('Nod-Befehl gesendet!')
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = KinovaMover()
-    node.destroy_node()
-    rclpy.shutdown()
-
-def test_move_kinova_arm(joint_positions=None, args=None):
+    print("test")
     rclpy.init(args=args)
     node = KinovaMover()
     
@@ -117,6 +119,6 @@ def test_move_kinova_arm(joint_positions=None, args=None):
     node.destroy_node()
     rclpy.shutdown()
 
+
 if __name__ == '__main__':
-    # main()
-    test_move_kinova_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    main()
