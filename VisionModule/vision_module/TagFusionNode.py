@@ -31,7 +31,7 @@ from vision_module.vision_helper import rotation_matrix_to_quaternion
 from vision_module.MultiViewTagFuser import (
     CameraModel, TagObservation, MultiViewTagFuser,
 )
-from vision_module import tag_messages
+from vision_module import TagMessage 
 
 CAMERA_NAMES = ["k4a_rgb", "realsense_color", "secondary_color"]
 DETECTION_TOPIC_NS = "/vision/tag_detections"
@@ -63,7 +63,7 @@ class TagFusionNode(Node):
         self.declare_parameter("camera_names", CAMERA_NAMES)
         self.declare_parameter("reference_frame", CAMERA_NAMES[0])
         self.declare_parameter("tag_size_m", 0.055)
-        self.declare_parameter("use_tf", False)
+        self.declare_parameter("use_tf", True)
         self.declare_parameter("max_sync_dt", 0.040)
         self.declare_parameter("max_age", 0.30)
 
@@ -98,7 +98,7 @@ class TagFusionNode(Node):
         self.get_logger().info(
             f"fusing {self.camera_names} into '{self.ref_frame}', "
             f"extrinsics from {'tf2' if self.use_tf else 'hardcoded'}, "
-            f"schema v{tag_messages.SCHEMA_VERSION}")
+            f"schema v{TagMessage.SCHEMA_VERSION}")
 
         if not self.use_tf and all(
                 np.allclose(EXTRINSICS.get(n, np.eye(4)), np.eye(4))
@@ -113,8 +113,8 @@ class TagFusionNode(Node):
     def _make_cb(self, name: str):
         def cb(msg: String):
             try:
-                packet = tag_messages.decode(msg.data)
-            except tag_messages.SchemaMismatch as e:
+                packet = TagMessage.decode(msg.data)
+            except TagMessage.SchemaMismatch as e:
                 self.get_logger().error(f"[{name}] bad packet: {e}",
                                         throttle_duration_sec=5.0)
                 return
@@ -128,7 +128,7 @@ class TagFusionNode(Node):
                     f"[{name}] intrinsics received, fx={packet.K[0, 0]:.1f}")
 
             self._buf[name] = (packet.stamp,
-                               tag_messages.to_observations(packet),
+                               TagMessage.to_observations(packet),
                                packet.frame_id)
         return cb
 

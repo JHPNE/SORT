@@ -70,7 +70,8 @@ def encode(camera: str,
     }
     return json.dumps(payload, separators=(",", ":"))
 
- def decode(text: str) -> DetectionPacket:
+
+def decode(text: str) -> DetectionPacket:
     """Parse a payload. Raises SchemaMismatch on a version or shape problem."""
     try:
         p = json.loads(text)
