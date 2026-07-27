@@ -3,7 +3,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional, Tuple, List, Sequence
 
-from vision_helper import (
+from vision_module.vision_helper import (
     rotation_matrix_to_quaternion,
     normalize_family,
     get_dictionary,

@@ -3,10 +3,10 @@ import rclpy
 from rclpy.node import Node
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, CameraInfo
+from std_msgs.msg import String
 
 from topic_handler.TopicList import TopicList, TopicSpec
 from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
-from typing import String
 
 from vision_module.AprilTagDetector import AprilTagDetector
 from vision_module.CameraInstrinsics import get_intrinsics, intrinsics_from_camera_info
@@ -69,7 +69,7 @@ class CameraViewer(Node):
 
             self._subs.append(TopicHandlerSubscriber(
                 node=self, topic_spec=spec,
-                callback=self._make_callback(name), qos=10))
+                callback=self._make_info_callback(name), qos=10))
  
             info_topic = _topic_name(spec).rsplit("/", 1)[0] + "/camera_info"
             self._info_subs.append(self.create_subscription(
