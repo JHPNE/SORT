@@ -18,10 +18,11 @@ class CameraTopics(BaseModel):
         name="/camera/color/image_raw", msg_type="sensor_msgs/msg/Image"
     )
 
-
 class ArmTopics(BaseModel):
-    pass
-
+    joint_trajectory: TopicSpec = TopicSpec(
+        name="/joint_trajectory_controller/joint_trajectory", msg_type=""
+    )
 
 class TopicList(BaseModel):
     camera: CameraTopics = CameraTopics()
+    arm: ArmTopics = ArmTopics()

@@ -1,6 +1,22 @@
 # SORT
 Separation-Oriented Recognition &amp; Tagging 
 
+## Helpful Commands
+
+### Bash
+```
+sudo ufw disable
+```
+
+### ROS2
+
+```
+ros2 node list
+ros2 topic list
+ros2 service list
+ros2 action list
+```
+
 ## ROS2 Basics
 ### 1. Creating a package for ros2:
 Note: package names should start with a lower case letter and only contain lower case letters, digits, underscores, and dashes.
@@ -39,11 +55,3 @@ ros2 run <package-name> <package-entry-point>
 
 ### Services
 Services are done similarly but are run with a `launch` tag. We will figure out how this is done once we need it. 
-
-### ROS2 Helpful Commands
-```
-ros2 node list
-ros2 topic list
-ros2 service list
-ros2 action list
-```
