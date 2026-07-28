@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from dataclasses import dataclass
-from typing import Optional, Tuple, List, Sequence
+from typing import Optional, Tuple, List, Sequence, Dict
 
 from vision_module.vision_helper import (
     rotation_matrix_to_quaternion,
@@ -100,6 +100,7 @@ class AprilTagDetector:
         self.family = normalize_family(tag_family)
         self.backend = "opencv"
         self.tag_size_m = float(tag_size_m) if tag_size_m is not None else None
+        self.tag_sizes: Dict[int, float] = {}
 
         self.camera_matrix: Optional[np.ndarray] = None
         self.dist_coeffs: Optional[np.ndarray] = None
@@ -156,6 +157,15 @@ class AprilTagDetector:
     def set_tag_size(self, tag_size_m: float) -> None:
         self.tag_size_m = float(tag_size_m)
         self._rebuild_object_points()
+
+    def set_tag_sizes(self, sizes: Dict[int, float]) -> None:
+        self.tag_sizes = dict(sizes)
+
+    def _obj_points_for(self, tag_id: int) -> np.ndarray:
+        size = self.tag_sizes.get(tag_id, self.tag_size_m)
+        h = size / 2.0
+        return np.array([[-h,  h, 0], [ h,  h, 0],
+                        [ h, -h, 0], [-h, -h, 0]], dtype=np.float64)
 
     @property
     def can_estimate_pose(self) -> bool:
@@ -238,9 +248,10 @@ class AprilTagDetector:
     def _solve_pose(self, det: TagDetection) -> None:
         """Planar PnP, two-fold ambiguity resolved by reprojection error."""
         img_pts = det.corners.astype(np.float64).reshape(4, 1, 2)
+        obj = self._obj_points_for(det.tag_id)
         try:
             n, rvecs, tvecs, errs = cv2.solvePnPGeneric(
-                self._obj_points, img_pts, self.camera_matrix, self.dist_coeffs,
+                obj, img_pts, self.camera_matrix, self.dist_coeffs,
                 flags=cv2.SOLVEPNP_IPPE_SQUARE)
             if n == 0 or not len(rvecs):
                 return
@@ -254,14 +265,14 @@ class AprilTagDetector:
             det.rvec, det.tvec = rvecs[best], tvecs[best]
         except cv2.error:
             ok, rvec, tvec = cv2.solvePnP(
-                self._obj_points, img_pts, self.camera_matrix, self.dist_coeffs,
+                obj, img_pts, self.camera_matrix, self.dist_coeffs,
                 flags=cv2.SOLVEPNP_ITERATIVE)
             if not ok:
                 return
             det.rvec, det.tvec = rvec, tvec
 
         det.rotation_matrix = cv2.Rodrigues(det.rvec)[0]
-        proj, _ = cv2.projectPoints(self._obj_points, det.rvec, det.tvec,
+        proj, _ = cv2.projectPoints(obj, det.rvec, det.tvec,
                                     self.camera_matrix, self.dist_coeffs)
         det.reprojection_error = float(np.sqrt(np.mean(
             np.sum((proj.reshape(4, 2) - det.corners) ** 2, axis=1))))

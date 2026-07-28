@@ -49,7 +49,7 @@ ZERO_D = np.zeros((5, 1), dtype=np.float64)
 
 PRESETS = {
     # Azure Kinect DK colour camera, 1080p, 16:9 mode. Nominal 90 x 59 deg.
-    "k4a_rgb": {
+    "arm_camera": {
         "size": (1920, 1080),
         "K": K_from_fov(1920, 1080, 90.0, 59.0),
         "D": ZERO_D.copy(),
