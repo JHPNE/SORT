@@ -21,6 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_viewer = vision_module.CameraViewer:main',
+            'camera_test = vision_module.TestCamera:main',
+            'camera_fusion = vision_module.TagFusionNode:main'
         ],
     },
 )
