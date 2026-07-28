@@ -237,8 +237,22 @@ class KinovaMover(Node, ArmGestures, IKMovement):
 
 
     # ------------------------------------------------------------------
-    # Gesture subscription
+    # Gesture subscription & Overrides
     # ------------------------------------------------------------------
+
+    def nod(self):
+        """Richtet den Arm automatisch zur Person aus und führt dann das Nicken aus."""
+        self.get_logger().info('Vorbereitung für Geste "nod": Person suchen & ausrichten...')
+        self.orient_to_person()
+        self.get_logger().info('Führe Geste aus: "nod"')
+        super().nod()
+
+    def shake(self):
+        """Richtet den Arm automatisch zur Person aus und führt dann das Schütteln aus."""
+        self.get_logger().info('Vorbereitung für Geste "shake": Person suchen & ausrichten...')
+        self.orient_to_person()
+        self.get_logger().info('Führe Geste aus: "shake"')
+        super().shake()
 
     def _gesture_callback(self, msg: String) -> None:
         """
@@ -256,16 +270,7 @@ class KinovaMover(Node, ArmGestures, IKMovement):
             return
 
         thread = threading.Thread(
-            target=self._run_gesture_with_tracking,
-            args=(name, gesture_fn),
+            target=gesture_fn,
             daemon=True
         )
         thread.start()
-
-    def _run_gesture_with_tracking(self, name: str, gesture_fn: callable) -> None:
-        """Richtet den Arm aus und führt dann die Geste aus."""
-        self.get_logger().info(f'Vorbereitung für Geste "{name}": Person suchen...')
-        self.orient_to_person()
-
-        self.get_logger().info(f'Führe Geste aus: "{name}"')
-        gesture_fn()
