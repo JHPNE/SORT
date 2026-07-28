@@ -29,6 +29,10 @@ def main(args=None):
     node.shake()
     time.sleep(6.0)
 
+    node.get_logger().info('Testing Cartesian IK Move (x=0.4m, y=0.1m, z=0.3m)...')
+    node.move_to_cartesian_position(x=0.4, y=0.1, z=0.3, duration=5)
+    time.sleep(6.0)
+
     node.destroy_node()
     rclpy.shutdown()
 

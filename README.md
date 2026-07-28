@@ -7,6 +7,8 @@ Separation-Oriented Recognition &amp; Tagging
 ```
 sudo ufw disable
 export ROS_DOMAIN_ID=2
+
+sudo apt install ros-$ROS_DISTRO-pinocchio
 ```
 
 ### ROS2

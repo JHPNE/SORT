@@ -11,6 +11,7 @@ from topic_handler.TopicList import TopicList
 
 from .gestures import ArmGestures
 from .positions import HOME_POSITION, NOD_POSITION
+from .ik_solver import KinovaIKSolver, IKMovement
 
 # ---------------------------------------------------------------------------
 # Tracking-Parameter – hier anpassen wenn nötig
@@ -33,11 +34,22 @@ _MAX_ALIGN_TIME_S = 8.0
 _STEP_DURATION_S = 1.0
 
 
-class KinovaMover(Node, ArmGestures):
+class KinovaMover(Node, ArmGestures, IKMovement):
     def __init__(self):
         super().__init__('kinova_mover')
 
         self.topics = TopicList()
+
+        # Inverse Kinematics Solver (Pinocchio)
+        self.ik_solver = KinovaIKSolver()
+
+        # URDF automatisch vom ROS 2 Topic empfangen
+        self.create_subscription(
+            String,
+            '/robot_description',
+            self._robot_description_callback,
+            10
+        )
 
         self._publisher = self.create_publisher(
             JointTrajectory,
@@ -82,6 +94,7 @@ class KinovaMover(Node, ArmGestures):
         #   - Einheiten: Meter.
         # ------------------------------------------------------------------
         self._last_position: tuple[float, float, float] | None = None
+        self._last_orientation: tuple[float, float, float, float] | None = None
         self._tag_event = threading.Event()
 
         self.create_subscription(
@@ -102,6 +115,12 @@ class KinovaMover(Node, ArmGestures):
         time.sleep(2.0)
         self.move_arm_to(HOME_POSITION, duration=5)
         time.sleep(5.0)
+
+    def _robot_description_callback(self, msg: String) -> None:
+        """Laedt die URDF aus /robot_description in den Pinocchio IK-Solver."""
+        if self.ik_solver.model is None and msg.data:
+            if self.ik_solver.load_urdf(msg.data):
+                self.get_logger().info('URDF erfolgreich aus /robot_description geladen (Pinocchio IK bereit).')
 
     # ------------------------------------------------------------------
     # Core movement
@@ -140,34 +159,31 @@ class KinovaMover(Node, ArmGestures):
         self.move_sequence([(joint_positions, duration)])
 
     # ------------------------------------------------------------------
-    # AprilTag Tracking
+    # AprilTag Tracking & Log-Reaktion
     # ------------------------------------------------------------------
 
     def _tag_callback(self, msg: PoseStamped) -> None:
         """
-        Empfängt die 3D-Pose des AprilTags vom VisionModule.
-
-        Erwartet geometry_msgs/PoseStamped auf /vision/apriltag_pose.
-
-        Koordinatensystem: Standard-Kamera-Frame
-          Z-Achse zeigt vorwärts (Tiefe / Distanz)
-          X-Achse zeigt nach rechts
-          Y-Achse zeigt nach unten
-
-        Felder:
-          msg.pose.position.x : horizontale Position des Tags  [Meter]
-          msg.pose.position.y : vertikale Position des Tags     [Meter]
-          msg.pose.position.z : Tiefe (Distanz zur Kamera)      [Meter]
-          msg.pose.orientation : Tag-Orientierung als Quaternion
-                                  (für Greifen relevant, hier ignoriert)
-
-        Vertragsregel (für das VisionModule):
-          Nur senden wenn der Tag gerade sichtbar ist.
-          Kein Senden = Tag nicht sichtbar.
+        Empfängt die 3D-Pose des AprilTags vom VisionModule, loggt alle empfangenen
+        Informationen und setzt das Event für die Ausrichtung / IK-Bewegung.
         """
+        import math
+
         p = msg.pose.position
+        q = msg.pose.orientation
+        dist = math.sqrt(p.x**2 + p.y**2 + p.z**2)
+
         self._last_position = (p.x, p.y, p.z)
+        self._last_orientation = (q.x, q.y, q.z, q.w)
         self._tag_event.set()
+
+        # Detailliertes Log über empfangene Nachrichten
+        self.get_logger().info(
+            f'[AprilTag empfangen] '
+            f'Position: (x={p.x:+.3f}m, y={p.y:+.3f}m, z={p.z:+.3f}m) | '
+            f'Entfernung: {dist:.2f}m | '
+            f'Orientierung Quaternion: (x={q.x:.2f}, y={q.y:.2f}, z={q.z:.2f}, w={q.w:.2f})'
+        )
 
     def orient_to_person(self) -> None:
         """
