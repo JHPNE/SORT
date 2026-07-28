@@ -16,15 +16,15 @@ def main(args=None):
     node.move_arm_to(HOME_POSITION, 5)
     time.sleep(5.0)
 
-    # 1. AprilTag suchen & Kamera darauf ausrichten
-    node.get_logger().info('1. Suchen und Ausrichten zum AprilTag...')
+    # 1. AprilTag im Raum suchen & Kamera darauf ausrichten (nutzt den Umschau-Sweep wenn nötig)
+    node.get_logger().info('1. Starte Suche & Ausrichten zum AprilTag...')
     node.orient_to_person()
     time.sleep(1.0)
 
-    # 2. Per IK-Solver zum AprilTag hinbewegen
-    node.get_logger().info('2. Per IK-Solver direkt zum AprilTag fahren...')
+    # 2. Per IK-Solver direkt zur 3D-Position des erkannten AprilTags bewegen
+    node.get_logger().info('2. Starte Hinbewegen zum erkannten AprilTag per IK-Solver...')
     node.move_to_tag_ik(duration=10)
-    node.get_logger().info('Test abgeschlossen.')
+    node.get_logger().info('Test erfolgreich abgeschlossen.')
     time.sleep(3.0)
 
     node.destroy_node()

@@ -26,8 +26,8 @@ class AprilTagPublisher(Node):
         self.topics = TopicList()
 
         # Parameter
-        self.declare_parameter('target_tag_id', -1)          # Welcher Tag gesucht wird (-1 für beliebigen)
-        self.declare_parameter('tag_size_m', 0.10)         # Tag-Seitenlänge in Metern (z. B. 10 cm)
+        self.declare_parameter('target_tag_id', 3)          # Welcher Tag gesucht wird (-1 für beliebigen)
+        self.declare_parameter('tag_size_m', 0.06)         # Tag-Seitenlänge in Metern (z. B. 10 cm)
         self.declare_parameter('tag_family', 'tag36h11')
         self.declare_parameter('image_topic', self.topics.camera.arm_camera.name)
 

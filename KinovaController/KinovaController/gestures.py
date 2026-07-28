@@ -40,3 +40,19 @@ class ArmGestures:
             (base,  6),
         ])
 
+    def search(self):
+        """Führt eine langsame Suchbewegung (Umschauen) mit joint_4 und joint_5 aus."""
+        import math
+        base = list(getattr(self, '_current_oriented_position', NOD_POSITION))
+        base[3] += math.pi / 2  # joint_4 um 90° drehen für horizontales Schwenken
+
+        left  = list(base); left[4]  -= 0.4   # Nach links schwenken
+        right = list(base); right[4] += 0.4   # Nach rechts schwenken
+
+        self.move_sequence([
+            (left,  3),
+            (base,  6),
+            (right, 9),
+            (base, 12),
+        ])
+

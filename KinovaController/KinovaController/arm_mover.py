@@ -59,8 +59,9 @@ class KinovaMover(Node, ArmGestures, IKMovement):
 
         # Map gesture names → methods. Add new gestures here.
         self._gestures: dict[str, callable] = {
-            'nod':   self.nod,
-            'shake': self.shake,
+            'nod':    self.nod,
+            'shake':  self.shake,
+            'search': self.search,
         }
 
         # ------------------------------------------------------------------
@@ -333,6 +334,11 @@ class KinovaMover(Node, ArmGestures, IKMovement):
         self.orient_to_person()
         self.get_logger().info('Führe Geste aus: "shake"')
         super().shake()
+
+    def search(self):
+        """Führt den langsamen Umschau-Sweep (Suchbewegung) aus."""
+        self.get_logger().info('Führe Geste aus: "search" (Umschau-Sweep)...')
+        super().search()
 
     def _gesture_callback(self, msg: String) -> None:
         """
