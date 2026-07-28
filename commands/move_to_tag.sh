@@ -8,7 +8,12 @@
 
 TAG_ID="${1:-}"
 
-source /opt/ros/humble/setup.bash
+if [ -f "/opt/ros/jazzy/setup.bash" ]; then
+    source /opt/ros/jazzy/setup.bash
+elif [ -f "/opt/ros/humble/setup.bash" ]; then
+    source /opt/ros/humble/setup.bash
+fi
+
 if [ -f "$HOME/ros2_ws/install/setup.bash" ]; then
     source "$HOME/ros2_ws/install/setup.bash"
 fi
