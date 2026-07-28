@@ -23,9 +23,9 @@ _STEP_DURATION_S = 2.0   # Trajectory duration per step
 
 
 class VisualTracker:
-    """Mixin providing visual tracking and search capabilities."""
+    """Mixin providing visual tracking and search capabilities for KinovaMover."""
 
-    def _init_visual_tracker(self):
+    def _init_visual_tracker(self) -> None:
         """Initialize tracker internal states."""
         self._last_position: tuple[float, float, float] | None = None
         self._last_orientation: tuple[float, float, float, float] | None = None
@@ -148,3 +148,4 @@ class VisualTracker:
 
         self.get_logger().info('[Ausrichtung] Fertig. Starte Geste...')
         time.sleep(0.5)
+

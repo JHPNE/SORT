@@ -161,7 +161,14 @@ class IKMovement:
     Enthält alle High-Level Bewegungsfunktionen, die auf dem Pinocchio IK-Solver basieren.
     """
 
-    def move_to_cartesian_position(self, x: float, y: float, z: float, duration: int = 5, q_init: list[float] = None) -> bool:
+    def move_to_cartesian_position(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        duration: int = 5,
+        q_init: list[float] | None = None
+    ) -> bool:
         """
         Berechnet per Pinocchio Inverse Kinematics (IK) die Gelenkwinkel für
         die 3D-Zielkoordinaten (x, y, z) in Metern im Base-Frame und bewegt den Arm dorthin.
@@ -191,7 +198,7 @@ class IKMovement:
         Wartet auf die 3D-Position eines AprilTags und bewegt den End-Effektor per Pinocchio IK dorthin.
 
         :param duration: Bewegungsdauer in Sekunden.
-        :param offset_z: Sicherheitsabstand vor dem Tag in Metern.
+        :param offset_z: Sicherheitsabstand vor dem Tag in Metern (Standard: 0.2m).
         """
         if not hasattr(self, '_tag_event'):
             self.get_logger().error('VisualTracker nicht initialisiert!')
@@ -234,4 +241,6 @@ class IKMovement:
         else:
             self.get_logger().warn('[IK-Bewegung] FK konnte nicht berechnet werden. Nutze Direktkoordinaten.')
             return self.move_to_cartesian_position(x, y, z, duration=duration, q_init=q_current)
+
+
 

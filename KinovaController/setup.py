@@ -25,7 +25,6 @@ setup(
     entry_points={
         'console_scripts': [
             'arm_mover = KinovaController.main:main',
-            'arm_test_server = KinovaController.arm_test_server:main',
         ],
     },
 )
