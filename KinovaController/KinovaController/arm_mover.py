@@ -26,9 +26,10 @@ from .trajectory_executor import TrajectoryExecutor
 from .ik_solver import KinovaIKSolver, IKMovement
 from .visual_tracker import VisualTracker
 from .gestures import ArmGestures
+from .gripper_controller import GripperController
 
 
-class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestures):
+class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestures, GripperController):
     """
     Main ROS 2 Node for controlling the Kinova Gen3 arm.
     """
@@ -38,8 +39,9 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
 
         self.topics = TopicList()
 
-        # Initialize internal visual tracker states
+        # Initialize internal visual tracker and gripper states
         self._init_visual_tracker()
+        self._init_gripper()
 
         # Inverse Kinematics Solver (Pinocchio)
         self.ik_solver = KinovaIKSolver()
@@ -191,10 +193,31 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
             thread.start()
             return
 
+        # 5. Pick & Place Kommandos: "pick_tag_3", "pick_3", "open_gripper", "close_gripper"
+        if name.startswith("pick_tag_") or name.startswith("pick_"):
+            try:
+                tag_id = int(name.rsplit("_", 1)[1])
+                self.get_logger().info(f'Empfangen: Pick (Greif-Sequenz) für AprilTag {tag_id}...')
+                thread = threading.Thread(target=self.pick_tag, kwargs={"tag_id": tag_id}, daemon=True)
+                thread.start()
+                return
+            except ValueError:
+                pass
+
+        if name in ("open_gripper", "open"):
+            thread = threading.Thread(target=self.open_gripper, daemon=True)
+            thread.start()
+            return
+
+        if name in ("close_gripper", "close"):
+            thread = threading.Thread(target=self.close_gripper, daemon=True)
+            thread.start()
+            return
+
         gesture_fn = self._gestures.get(name)
 
         if gesture_fn is None:
-            known = ', '.join(list(self._gestures.keys()) + ['goto_arm_camera_tag', 'goto_worldspace_tag_<ID>', 'orient_worldspace_tag_<ID>'])
+            known = ', '.join(list(self._gestures.keys()) + ['goto_arm_camera_tag', 'goto_worldspace_tag_<ID>', 'pick_tag_<ID>', 'open_gripper', 'close_gripper'])
             self.get_logger().warn(f'Unknown gesture: "{name}". Known gestures: [{known}]')
             return
 
