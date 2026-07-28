@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # =====================================================================
 # Sende ein Anfahr-Kommando per ROS 2 Topic /arm/gesture
+#
+# VORAUSSETZUNG:
+#   Der Kinova Controller (arm_mover) muss gestartet sein:
+#   ros2 run kinova_controller arm_mover
+#
 # Verwendung:
 #   bash commands/move_to_tag.sh 3     (Fährt zu AprilTag 3 aus WorldSpaceNode)
 #   bash commands/move_to_tag.sh       (Fährt zum AprilTag der Arm-Kamera)
@@ -26,4 +31,5 @@ else
     echo "[Command] Sende Arm-Kamera IK-Anfahrbefehl auf /arm/gesture..."
 fi
 
+echo "[HINWEIS] Stelle sicher, dass der Controller läuft: ros2 run kinova_controller arm_mover"
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "{data: '$CMD'}"

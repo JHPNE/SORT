@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # =====================================================================
 # Sende Befehl: Kinova Gen3 Arm fährt in HOME_POSITION
+#
+# VORAUSSETZUNG:
+#   Der Kinova Controller (arm_mover) muss gestartet sein:
+#   ros2 run kinova_controller arm_mover
 # =====================================================================
 
 if [ -f "/opt/ros/jazzy/setup.bash" ]; then
@@ -14,4 +18,5 @@ if [ -f "$HOME/ros2_ws/install/setup.bash" ]; then
 fi
 
 echo "=== Sende Befehl: Kinova Gen3 Arm fährt in HOME_POSITION... ==="
+echo "[HINWEIS] Stelle sicher, dass der Controller läuft: ros2 run kinova_controller arm_mover"
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "{data: 'home'}"
