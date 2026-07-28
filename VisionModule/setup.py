@@ -17,6 +17,7 @@ setup(
         'console_scripts': [
             'tag_detector = vision_module.TagDetectorNode:main',
             'world_space = vision_module.WorldSpaceNode:main',
+            'tag_reader = vision_module.TagReaderNode:main',
         ],
     },
 )
