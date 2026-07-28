@@ -1,28 +1,22 @@
-from setuptools import find_packages, setup
+from setuptools import setup, find_packages
 
-package_name = 'vision_module'
+package_name = 'vision_module'   # must match <name> in package.xml exactly
 
 setup(
     name=package_name,
-    version='0.0.1',
+    version='0.1.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
-            ['resource/' + package_name]),
+         ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'opencv-python'],
+    install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Sort',
-    maintainer_email='asd@googlemail.com',
-    description='Multi-camera vision pipeline with cv_bridge',
-    license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'camera_viewer = vision_module.CameraViewer:main',
-            'camera_test = vision_module.TestCamera:main',
-            'camera_fusion = vision_module.TagFusionNode:main'
+            'tag_detector = vision_module.TagDetectorNode:main',
+            'world_space  = vision_module.WorldSpaceNode:main',
         ],
     },
 )
