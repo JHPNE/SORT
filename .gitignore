@@ -54,3 +54,7 @@ qtcreator-*
 CATKIN_IGNORE
 
 .venv
+
+# Personal setup scripts
+scripts/
+

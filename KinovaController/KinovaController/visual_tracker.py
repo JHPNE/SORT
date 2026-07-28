@@ -18,7 +18,7 @@ _SCALE_H = 0.20          # joint_1 (Basis, horizontal)
 _SCALE_V = 0.15          # joint_5 (Handgelenk-Neigung, vertikal)
 _DEAD_ZONE = 0.05        # ~2.8°
 _SEARCH_TIMEOUT_S = 2.0  # Wait time per step for tag message
-_MAX_ALIGN_TIME_S = 10.0 # Max alignment loop duration
+_MAX_ALIGN_TIME_S = 30.0 # Max alignment loop duration (30 seconds)
 _STEP_DURATION_S = 2.0   # Trajectory duration per step
 
 
