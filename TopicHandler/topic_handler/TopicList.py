@@ -20,10 +20,10 @@ class CameraTopics(BaseModel):
 
 class ArmTopics(BaseModel):
     joint_trajectory: TopicSpec = TopicSpec(
-        name="/joint_trajectory_controller/joint_trajectory", msg_type="trajectory_msgs/JointTrajectory"
+        name="/joint_trajectory_controller/joint_trajectory", msg_type="trajectory_msgs/msg/JointTrajectory"
     )
     publish_test: TopicSpec = TopicSpec(
-        name="/publish_test", msg_type="trajectory_msgs/JointTrajectory"
+        name="/publish_test", msg_type="trajectory_msgs/msg/JointTrajectory"
     )
     gesture: TopicSpec = TopicSpec(
         name="/arm/gesture", msg_type="std_msgs/msg/String"
