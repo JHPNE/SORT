@@ -25,7 +25,8 @@ class KinovaMover(Node, ArmGestures):
 
         # Map gesture names → methods. Add new gestures here.
         self._gestures: dict[str, callable] = {
-            'nod': self.nod,
+            'nod':   self.nod,
+            'shake': self.shake,
         }
 
         self.create_subscription(
