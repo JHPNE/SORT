@@ -1,13 +1,36 @@
-import rclpy
-from rclpy.node import Node
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from std_msgs.msg import String
+import threading
 import time
+
+import rclpy
+from geometry_msgs.msg import PoseStamped
+from rclpy.node import Node
+from std_msgs.msg import String
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from topic_handler.TopicList import TopicList
 
 from .gestures import ArmGestures
-from .positions import HOME_POSITION
+from .positions import HOME_POSITION, NOD_POSITION
+
+# ---------------------------------------------------------------------------
+# Tracking-Parameter – hier anpassen wenn nötig
+# ---------------------------------------------------------------------------
+
+# Verstärkung: wie viel Gelenkwinkel (rad) pro normalisierter Bildeinheit
+_SCALE_H = 0.4    # joint_1 (Basis, horizontal)
+_SCALE_V = 0.25   # joint_5 (Handgelenk-Neigung, vertikal)
+
+# Korrekturen kleiner als DEAD_ZONE werden ignoriert (Zittern vermeiden)
+_DEAD_ZONE = 0.08
+
+# Wie lange pro Schleifendurchlauf auf ein neues Tag-Signal gewartet wird
+_SEARCH_TIMEOUT_S = 2.0
+
+# Maximale Dauer der Ausrichtungs-Schleife (Sekunden)
+_MAX_ALIGN_TIME_S = 8.0
+
+# Dauer eines einzelnen Korrekturschritts (Sekunden)
+_STEP_DURATION_S = 1.0
 
 
 class KinovaMover(Node, ArmGestures):
@@ -27,6 +50,46 @@ class KinovaMover(Node, ArmGestures):
             'nod':   self.nod,
             'shake': self.shake,
         }
+
+        # ------------------------------------------------------------------
+        # AprilTag-Tracking-Zustand
+        #
+        # Das VisionModule publisht auf /vision/apriltag_pose einen
+        # geometry_msgs/PoseStamped mit der 3D-Pose des erkannten Tags
+        # im Kamera-Koordinatensystem:
+        #
+        #   pose.position.x : float  Horizontale Position des Tags (Kamera-Frame)
+        #                             Positiv = Tag rechts vom Kameramittelpunkt
+        #                             Negativ = Tag links  vom Kameramittelpunkt
+        #
+        #   pose.position.y : float  Vertikale Position des Tags (Kamera-Frame)
+        #                             Positiv = Tag unterhalb des Kameramittelpunkts
+        #                             Negativ = Tag oberhalb des Kameramittelpunkts
+        #
+        #   pose.position.z : float  Tiefe – Distanz der Kamera zum Tag (Meter)
+        #                             Wird für orient_to_person() nicht benötigt,
+        #                             aber für späteres Greifen (IK) essenziell.
+        #
+        #   pose.orientation : Quaternion  Orientierung des Tags im Kamera-Frame
+        #                             Wird für Greifen benötigt (Greif-Achse).
+        #                             Für Tracking ignoriert.
+        #
+        # WICHTIG für das VisionModule:
+        #   - Nur publizieren wenn der konfigurierte Tag sichtbar ist.
+        #   - Kein "Tag verloren"-Message senden – einfach aufhören zu publizieren.
+        #   - Ausbleibende Nachrichten = Tag nicht sichtbar.
+        #   - Koordinatensystem: Standard-Kamera-Frame (Z vorwärts, X rechts, Y nach unten).
+        #   - Einheiten: Meter.
+        # ------------------------------------------------------------------
+        self._last_position: tuple[float, float, float] | None = None
+        self._tag_event = threading.Event()
+
+        self.create_subscription(
+            PoseStamped,
+            self.topics.arm.apriltag_pose.name,
+            self._tag_callback,
+            10
+        )
 
         self.create_subscription(
             String,
@@ -77,11 +140,97 @@ class KinovaMover(Node, ArmGestures):
         self.move_sequence([(joint_positions, duration)])
 
     # ------------------------------------------------------------------
+    # AprilTag Tracking
+    # ------------------------------------------------------------------
+
+    def _tag_callback(self, msg: PoseStamped) -> None:
+        """
+        Empfängt die 3D-Pose des AprilTags vom VisionModule.
+
+        Erwartet geometry_msgs/PoseStamped auf /vision/apriltag_pose.
+
+        Koordinatensystem: Standard-Kamera-Frame
+          Z-Achse zeigt vorwärts (Tiefe / Distanz)
+          X-Achse zeigt nach rechts
+          Y-Achse zeigt nach unten
+
+        Felder:
+          msg.pose.position.x : horizontale Position des Tags  [Meter]
+          msg.pose.position.y : vertikale Position des Tags     [Meter]
+          msg.pose.position.z : Tiefe (Distanz zur Kamera)      [Meter]
+          msg.pose.orientation : Tag-Orientierung als Quaternion
+                                  (für Greifen relevant, hier ignoriert)
+
+        Vertragsregel (für das VisionModule):
+          Nur senden wenn der Tag gerade sichtbar ist.
+          Kein Senden = Tag nicht sichtbar.
+        """
+        p = msg.pose.position
+        self._last_position = (p.x, p.y, p.z)
+        self._tag_event.set()
+
+    def orient_to_person(self) -> None:
+        """
+        Richtet den Arm in einer dynamischen Regelschleife zur erkannten Person aus,
+        bevor eine Geste ausgeführt wird.
+
+        Verfolgt die 3D-Position kontinuierlich und passt die Gelenke in Schleifendurchläufen an,
+        bis der AprilTag zentriert ist (innerhalb _DEAD_ZONE) oder das Timeout (_MAX_ALIGN_TIME_S) erreicht ist.
+        """
+        import math
+
+        self.get_logger().info('Starte dynamische Ausrichtung zur Person...')
+        start_time = time.time()
+
+        while time.time() - start_time < _MAX_ALIGN_TIME_S:
+            self._tag_event.clear()
+            tag_found = self._tag_event.wait(timeout=_SEARCH_TIMEOUT_S)
+
+            if not tag_found:
+                self.get_logger().warn(
+                    'AprilTag nicht gefunden oder verloren. Beende Ausrichtungs-Schleife.'
+                )
+                break
+
+            x, y, z = self._last_position
+
+            h_angle = math.atan2(x, z)
+            v_angle = math.atan2(y, z)
+
+            # Prüfe, ob die Person im Bild zentriert ist
+            if abs(h_angle) < _DEAD_ZONE and abs(v_angle) < _DEAD_ZONE:
+                self.get_logger().info('Person erfolgreich im Kamerabild zentriert!')
+                break
+
+            # Zielposition berechnen
+            target = list(NOD_POSITION)
+            target[0] += h_angle * _SCALE_H   # joint_1: Basis horizontal
+            target[4] += v_angle * _SCALE_V   # joint_5: Handgelenk vertikal
+
+            self.get_logger().info(
+                f'Nachregeln: h={math.degrees(h_angle):.1f}°, v={math.degrees(v_angle):.1f}° '
+                f'→ Δjoint_1={h_angle * _SCALE_H:+.3f} rad, Δjoint_5={v_angle * _SCALE_V:+.3f} rad'
+            )
+
+            self.move_arm_to(target, duration=int(_STEP_DURATION_S))
+            time.sleep(_STEP_DURATION_S)
+
+        # Kurze Beruhigungszeit vor Gestenstart
+        time.sleep(0.5)
+
+
+
+    # ------------------------------------------------------------------
     # Gesture subscription
     # ------------------------------------------------------------------
 
-    def _gesture_callback(self, msg: String):
-        """Receives a gesture name on /arm/gesture and dispatches to the matching method."""
+    def _gesture_callback(self, msg: String) -> None:
+        """
+        Empfängt einen Gesten-Namen auf /arm/gesture.
+
+        Startet die Ausführung in einem Background-Thread damit der
+        ROS-Spin-Loop nicht blockiert wird (orient_to_person() schläft).
+        """
         name = msg.data.strip().lower()
         gesture_fn = self._gestures.get(name)
 
@@ -90,5 +239,17 @@ class KinovaMover(Node, ArmGestures):
             self.get_logger().warn(f'Unknown gesture: "{name}". Known gestures: [{known}]')
             return
 
-        self.get_logger().info(f'Executing gesture: "{name}"')
+        thread = threading.Thread(
+            target=self._run_gesture_with_tracking,
+            args=(name, gesture_fn),
+            daemon=True
+        )
+        thread.start()
+
+    def _run_gesture_with_tracking(self, name: str, gesture_fn: callable) -> None:
+        """Richtet den Arm aus und führt dann die Geste aus."""
+        self.get_logger().info(f'Vorbereitung für Geste "{name}": Person suchen...')
+        self.orient_to_person()
+
+        self.get_logger().info(f'Führe Geste aus: "{name}"')
         gesture_fn()

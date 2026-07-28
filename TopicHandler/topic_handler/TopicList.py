@@ -28,6 +28,9 @@ class ArmTopics(BaseModel):
     gesture: TopicSpec = TopicSpec(
         name="/arm/gesture", msg_type="std_msgs/msg/String"
     )
+    apriltag_pose: TopicSpec = TopicSpec(
+        name="/vision/apriltag_pose", msg_type="geometry_msgs/msg/PoseStamped"
+    )
 
 class FeedbackTopics(BaseModel):
     ha_lights: TopicSpec = TopicSpec(
