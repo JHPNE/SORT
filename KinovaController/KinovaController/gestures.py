@@ -13,9 +13,10 @@ class ArmGestures:
     """Mixin that provides gesture methods for KinovaMover."""
 
     def nod(self):
-        nod_down = list(NOD_POSITION);  nod_down[4] += 0.5   # Wrist pitch down
-        nod_up   = list(NOD_POSITION);  nod_up[4]   -= 0.5   # Wrist pitch up
-        nod_end  = list(HOME_POSITION); nod_end[4]  += 0.5   # Return near home
+        base = list(getattr(self, '_current_oriented_position', NOD_POSITION))
+        nod_down = list(base);  nod_down[4] += 0.4   # Wrist pitch down
+        nod_up   = list(base);  nod_up[4]   -= 0.4   # Wrist pitch up
+        nod_end  = list(base);                       # Return to oriented base position
 
         self.move_sequence([
             (nod_down, 2),
@@ -25,9 +26,8 @@ class ArmGestures:
 
     def shake(self):
         import math
-        # Rotate joint_4 (index 3) by 90° to reorient the wrist plane,
-        # then oscillate joint_5 (index 4) left/right for a head shake.
-        base  = list(NOD_POSITION);  base[3]  += math.pi / 2  # Rotate wrist plane 90°
+        base  = list(getattr(self, '_current_oriented_position', NOD_POSITION))
+        base[3] += math.pi / 2  # Rotate wrist plane 90° for head shake
         left  = list(base);          left[4]  += 0.3           # Shake left
         right = list(base);          right[4] -= 0.3           # Shake right
 

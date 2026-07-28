@@ -14,24 +14,24 @@ from .positions import HOME_POSITION, NOD_POSITION
 from .ik_solver import KinovaIKSolver, IKMovement
 
 # ---------------------------------------------------------------------------
-# Tracking-Parameter – hier anpassen wenn nötig
+# Tracking-Parameter – Sanfte Ausrichtung
 # ---------------------------------------------------------------------------
 
-# Verstärkung: wie viel Gelenkwinkel (rad) pro normalisierter Bildeinheit
-_SCALE_H = 0.4    # joint_1 (Basis, horizontal)
-_SCALE_V = 0.25   # joint_5 (Handgelenk-Neigung, vertikal)
+# Skalierung der Korrektur (kleiner = sanftere, weichere Bewegung)
+_SCALE_H = 0.20    # joint_1 (Basis, horizontal)
+_SCALE_V = 0.15    # joint_5 (Handgelenk-Neigung, vertikal)
 
 # Korrekturen kleiner als DEAD_ZONE werden ignoriert (Zittern vermeiden)
-_DEAD_ZONE = 0.08
+_DEAD_ZONE = 0.05
 
 # Wie lange pro Schleifendurchlauf auf ein neues Tag-Signal gewartet wird
 _SEARCH_TIMEOUT_S = 2.0
 
 # Maximale Dauer der Ausrichtungs-Schleife (Sekunden)
-_MAX_ALIGN_TIME_S = 8.0
+_MAX_ALIGN_TIME_S = 10.0
 
-# Dauer eines einzelnen Korrekturschritts (Sekunden)
-_STEP_DURATION_S = 1.0
+# Dauer eines einzelnen Korrekturschritts (Sekunden) - 2s ist wesentlich sanfter als 1s
+_STEP_DURATION_S = 2.0
 
 
 class KinovaMover(Node, ArmGestures, IKMovement):
@@ -95,6 +95,7 @@ class KinovaMover(Node, ArmGestures, IKMovement):
         # ------------------------------------------------------------------
         self._last_position: tuple[float, float, float] | None = None
         self._last_orientation: tuple[float, float, float, float] | None = None
+        self._current_oriented_position: list[float] = list(NOD_POSITION)
         self._tag_event = threading.Event()
 
         self.create_subscription(
@@ -111,10 +112,22 @@ class KinovaMover(Node, ArmGestures, IKMovement):
             10
         )
 
+        # ROS 2 Spin-Loop im Hintergrund starten, damit Subscriber-Callbacks empfangen werden
+        self._executor = rclpy.executors.SingleThreadedExecutor()
+        self._executor.add_node(self)
+        self._spin_thread = threading.Thread(target=self._executor.spin, daemon=True)
+        self._spin_thread.start()
+
         self.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
         time.sleep(2.0)
         self.move_arm_to(HOME_POSITION, duration=5)
         time.sleep(5.0)
+
+    def destroy_node(self):
+        """Beendet den Hintergrund-Executor vor dem Zerstören des Nodes sauber."""
+        if hasattr(self, '_executor') and self._executor:
+            self._executor.shutdown()
+        super().destroy_node()
 
     def _robot_description_callback(self, msg: String) -> None:
         """Laedt die URDF aus /robot_description in den Pinocchio IK-Solver."""
@@ -151,6 +164,25 @@ class KinovaMover(Node, ArmGestures, IKMovement):
         self.get_logger().info(f'Sending sequence of {len(steps)} point(s) to Kinova Gen3...')
         self._publisher.publish(msg)
 
+    def move_to_tag_ik(self, duration: int = 5) -> bool:
+        """
+        Wartet auf die 3D-Position eines AprilTags und bewegt den End-Effektor per Pinocchio IK dorthin.
+        """
+        self._tag_event.clear()
+        self.get_logger().info('[IK-Bewegung] Warte auf AprilTag-Position...')
+        tag_found = self._tag_event.wait(timeout=5.0)
+
+        if not tag_found or self._last_position is None:
+            self.get_logger().warn('[IK-Bewegung] Kein AprilTag empfangen!')
+            return False
+
+        x, y, z = self._last_position
+        self.get_logger().info(
+            f'[IK-Bewegung] Tag-Position erkannt: x={x:+.3f}m, y={y:+.3f}m, z={z:+.3f}m → Berechne IK...'
+        )
+
+        return self.move_to_cartesian_position(x, y, z, duration=duration)
+
     def move_arm_to(self, joint_positions=None, duration=10):
         """Convenience wrapper to move to a single joint position."""
         if joint_positions is None:
@@ -185,53 +217,101 @@ class KinovaMover(Node, ArmGestures, IKMovement):
             f'Orientierung Quaternion: (x={q.x:.2f}, y={q.y:.2f}, z={q.z:.2f}, w={q.w:.2f})'
         )
 
+    def _slow_search_sweep(self) -> bool:
+        """
+        Schwenkt den Kamera-Kopf langsam über joint_4 und joint_5 (wie bei shake, aber langsam),
+        um im Raum nach einem AprilTag zu suchen.
+
+        Gibt True zurück, sobald ein Tag während des Sweeps erkannt wurde, sonst False.
+        """
+        import math
+
+        self.get_logger().info('[Suche] Kein AprilTag im Sichtfeld – starte langsamen Umschau-Sweep mit joint_4 & joint_5...')
+
+        # Basis für den Umschau-Sweep: joint_4 um 90° drehen (damit joint_5 horizontal schwenkt)
+        base = list(NOD_POSITION)
+        base[3] += math.pi / 2  # joint_4 (Kamera-Drehung)
+
+        # Schwenkpositionen für joint_5 (langsam links, mitte, rechts, mitte)
+        sweep_offsets = [-0.4, 0.0, 0.4, 0.0]
+
+        for offset in sweep_offsets:
+            sweep_pos = list(base)
+            sweep_pos[4] += offset
+
+            self.get_logger().info(f'[Suche] Schwenke Kamera langsam (joint_5 Offset: {offset:+.2f} rad)...')
+            self._current_oriented_position = sweep_pos
+            self.move_arm_to(sweep_pos, duration=3)  # Langsame 3-Sekunden-Trajektorie
+
+            # Während und nach der Bewegung auf Tag-Signal prüfen
+            self._tag_event.clear()
+            found = self._tag_event.wait(timeout=3.5)
+
+            if found:
+                self.get_logger().info('[Suche] AprilTag während des Umschauens entdeckt!')
+                return True
+
+        return False
+
     def orient_to_person(self) -> None:
         """
         Richtet den Arm in einer dynamischen Regelschleife zur erkannten Person aus,
         bevor eine Geste ausgeführt wird.
 
-        Verfolgt die 3D-Position kontinuierlich und passt die Gelenke in Schleifendurchläufen an,
-        bis der AprilTag zentriert ist (innerhalb _DEAD_ZONE) oder das Timeout (_MAX_ALIGN_TIME_S) erreicht ist.
+        Falls aktuell kein AprilTag im Sichtfeld ist, wird ein langsamer Umschau-Sweep
+        über joint_4/joint_5 gestartet, um den Tag zu suchen.
         """
         import math
 
-        self.get_logger().info('Starte dynamische Ausrichtung zur Person...')
+        self.get_logger().info('[Ausrichtung] Starte Suche & Ausrichtung zur Person...')
         start_time = time.time()
+        step_count = 0
 
         while time.time() - start_time < _MAX_ALIGN_TIME_S:
+            step_count += 1
             self._tag_event.clear()
+
+            self.get_logger().info(f'[Ausrichtung Schritt {step_count}] Warte auf AprilTag-Signal (max {_SEARCH_TIMEOUT_S}s)...')
             tag_found = self._tag_event.wait(timeout=_SEARCH_TIMEOUT_S)
 
             if not tag_found:
-                self.get_logger().warn(
-                    'AprilTag nicht gefunden oder verloren. Beende Ausrichtungs-Schleife.'
-                )
+                self.get_logger().info('[Ausrichtung] Keinen AprilTag im aktuellen Sichtfeld – starte Umschau-Sweep...')
+                tag_found = self._slow_search_sweep()
+
+            if not tag_found:
+                self.get_logger().warn('[Ausrichtung] Auch nach dem Umschau-Sweep kein AprilTag gefunden.')
                 break
 
             x, y, z = self._last_position
-
             h_angle = math.atan2(x, z)
             v_angle = math.atan2(y, z)
 
-            # Prüfe, ob die Person im Bild zentriert ist
+            self.get_logger().info(
+                f'[Ausrichtung Schritt {step_count}] Tag-Position im Kamera-Frame: '
+                f'x={x:+.3f}m, y={y:+.3f}m, z={z:+.3f}m | '
+                f'Winkelversatz: Horiz={math.degrees(h_angle):+.1f}°, Vert={math.degrees(v_angle):+.1f}°'
+            )
+
+            # Prüfe, ob die Person im Bild zentriert ist (innerhalb Deadzone ~4.5°)
             if abs(h_angle) < _DEAD_ZONE and abs(v_angle) < _DEAD_ZONE:
-                self.get_logger().info('Person erfolgreich im Kamerabild zentriert!')
+                self.get_logger().info('[Ausrichtung] AprilTag erfolgreich im Kamerabild zentriert!')
                 break
 
             # Zielposition berechnen
-            target = list(NOD_POSITION)
+            target = list(self._current_oriented_position)
             target[0] += h_angle * _SCALE_H   # joint_1: Basis horizontal
             target[4] += v_angle * _SCALE_V   # joint_5: Handgelenk vertikal
 
             self.get_logger().info(
-                f'Nachregeln: h={math.degrees(h_angle):.1f}°, v={math.degrees(v_angle):.1f}° '
-                f'→ Δjoint_1={h_angle * _SCALE_H:+.3f} rad, Δjoint_5={v_angle * _SCALE_V:+.3f} rad'
+                f'[Ausrichtung Schritt {step_count}] Passe Gelenke an: '
+                f'joint_1 += {h_angle * _SCALE_H:+.3f} rad, joint_5 += {v_angle * _SCALE_V:+.3f} rad'
             )
 
+            self._current_oriented_position = target
             self.move_arm_to(target, duration=int(_STEP_DURATION_S))
             time.sleep(_STEP_DURATION_S)
 
-        # Kurze Beruhigungszeit vor Gestenstart
+        self.get_logger().info('[Ausrichtung] Fertig. Starte Geste...')
         time.sleep(0.5)
 
 

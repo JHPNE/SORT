@@ -12,26 +12,20 @@ def main(args=None):
     node.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
     time.sleep(2.0)
 
-    node.get_logger().info('move to home position')
+    node.get_logger().info('Fahre zu HOME_POSITION...')
     node.move_arm_to(HOME_POSITION, 5)
-    node.get_logger().info('Warte 5 Sekunden, bis Home-Position erreicht ist...')
     time.sleep(5.0)
 
-    node.get_logger().info('move to nod position')
-    node.move_arm_to(NOD_POSITION, 5.0)
-    time.sleep(5.0)
+    # 1. AprilTag suchen & Kamera darauf ausrichten
+    node.get_logger().info('1. Suchen und Ausrichten zum AprilTag...')
+    node.orient_to_person()
+    time.sleep(1.0)
 
-    node.get_logger().info('do nodding')
-    node.nod()
-    time.sleep(6.0)
-
-    # node.get_logger().info('do shaking')
-    # node.shake()
-    # time.sleep(6.0)
-
-    # node.get_logger().info('Testing Cartesian IK Move (x=0.4m, y=0.1m, z=0.3m)...')
-    # node.move_to_cartesian_position(x=0.4, y=0.1, z=0.3, duration=5)
-    # time.sleep(6.0)
+    # 2. Per IK-Solver zum AprilTag hinbewegen
+    node.get_logger().info('2. Per IK-Solver direkt zum AprilTag fahren...')
+    node.move_to_tag_ik(duration=10)
+    node.get_logger().info('Test abgeschlossen.')
+    time.sleep(3.0)
 
     node.destroy_node()
     rclpy.shutdown()

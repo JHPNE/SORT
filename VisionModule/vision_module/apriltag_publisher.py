@@ -29,10 +29,12 @@ class AprilTagPublisher(Node):
         self.declare_parameter('target_tag_id', -1)          # Welcher Tag gesucht wird (-1 für beliebigen)
         self.declare_parameter('tag_size_m', 0.10)         # Tag-Seitenlänge in Metern (z. B. 10 cm)
         self.declare_parameter('tag_family', 'tag36h11')
+        self.declare_parameter('image_topic', self.topics.camera.arm_camera.name)
 
         self.target_id = self.get_parameter('target_tag_id').value
         self.tag_size = float(self.get_parameter('tag_size_m').value)
         family = self.get_parameter('tag_family').value
+        image_topic = self.get_parameter('image_topic').value
 
         # AprilTag / ArUco Wörterbuch & Detektor initialisieren
         self.dictionary = get_dictionary(family)
@@ -51,17 +53,17 @@ class AprilTagPublisher(Node):
             10
         )
 
-        # Subscriber für RealSense Kamera
+        # Subscriber für Kamera-Topic
         self.create_subscription(
             Image,
-            self.topics.camera.realsense_color.name,
+            image_topic,
             self._image_callback,
             10
         )
 
         self.get_logger().info(
-            f'AprilTagPublisher gestartet! Lausche auf {self.topics.camera.realsense_color.name}, '
-            f'publiziere Pose auf {self.topics.arm.apriltag_pose.name} (Target Tag ID: {self.target_id})'
+            f'AprilTagPublisher gestartet! Lausche auf "{image_topic}", '
+            f'publiziere Pose auf "{self.topics.arm.apriltag_pose.name}" (Target Tag ID: {self.target_id})'
         )
 
     def _image_callback(self, msg: Image) -> None:
