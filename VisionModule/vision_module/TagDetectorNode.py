@@ -11,6 +11,7 @@ from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
 from vision_module.AprilTagDetector import AprilTagDetector
 from vision_module.CameraInstrinsics import get_intrinsics, intrinsics_from_camera_info
 from vision_module import TagMessage
+from vision_module.TagRegistry import tag_sizes
 
 DETECTION_TOPIC_NS = "/vision/tag_detections"
  
@@ -33,11 +34,11 @@ class TagDetectorNode(Node):
         self.tag_size = float(self.get_parameter("tag_size_m").value)
         self.max_reproj = float(
             self.get_parameter("max_reprojection_error_px").value)
- 
+
         self.bridge = CvBridge()
         topics = TopicList()
         cam_topics = {
-            "k4a_rgb": topics.camera.k4a_rgb,
+            "arm_camera": topics.camera.arm_camera,
             "realsense_color": topics.camera.realsense_color,
             "secondary_color": topics.camera.secondary_color,
         }
@@ -50,6 +51,8 @@ class TagDetectorNode(Node):
  
         for name, spec in cam_topics.items():
             det = AprilTagDetector("tag36h11", tag_size_m=self.tag_size)
+            det.set_tag_sizes(tag_sizes())
+
             try:
                 K, D = get_intrinsics(name)
                 det.set_camera_info(K, D)   # preset; camera_info overrides

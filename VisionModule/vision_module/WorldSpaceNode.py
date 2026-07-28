@@ -36,14 +36,15 @@ from vision_module.MultiViewTagFuser import (
     CameraModel, TagObservation, MultiViewTagFuser,
 )
 from vision_module import TagMessage 
+from vision_module.TagRegistry import tag_sizes
 
-CAMERA_NAMES = ["k4a_rgb", "realsense_color", "secondary_color"]
+CAMERA_NAMES = ["arm_camera", "realsense_color", "secondary_color"]
 DETECTION_TOPIC_NS = "/vision/tag_detections"
 
 # ref_T_cam, metres. Paste output from extrinsic_calibration.py here.
 # Only used when use_tf:=false.
 EXTRINSICS: Dict[str, np.ndarray] = {
-    "k4a_rgb": np.eye(4),
+    "arm_camera": np.eye(4),
     "realsense_color": np.eye(4),
     "secondary_color": np.eye(4),
 }
@@ -88,7 +89,7 @@ class WorldSpaceNode(Node):
         models = {n: CameraModel(n, np.eye(3), np.zeros((5, 1)),
                                  EXTRINSICS.get(n, np.eye(4)))
                   for n in self.camera_names}
-        self.fuser = MultiViewTagFuser(models, tag_size)
+        self.fuser = MultiViewTagFuser(models, tag_size, tag_sizes=tag_sizes())
 
         # camera -> (stamp, [TagObservation], frame_id)
         self._buf: Dict[str, Tuple[float, List[TagObservation], str]] = {}

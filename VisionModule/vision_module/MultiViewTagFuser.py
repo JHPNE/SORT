@@ -230,7 +230,7 @@ def tag_object_points(tag_size_m: float) -> np.ndarray:
 class MultiViewTagFuser:
     def __init__(self,
                  cameras: Dict[str, CameraModel],
-                 tag_size_m: float,
+                 tag_sizes: Optional[Dict[int, float]] = None,
                  min_ray_angle_deg: float = 3.0,
                  max_fit_rms_m: float = 0.005):
         """
@@ -245,14 +245,16 @@ class MultiViewTagFuser:
                            It will not catch a few mm of extrinsic drift.
         """
         self.cameras = dict(cameras)
-        self.tag_size_m = float(tag_size_m)
         self.min_ray_angle_deg = float(min_ray_angle_deg)
         self.max_fit_rms_m = float(max_fit_rms_m)
-        self._obj = tag_object_points(tag_size_m)
+        self.tag_sizes = dict(tag_sizes or {})
 
     def set_extrinsics(self, name: str, ref_T_cam: np.ndarray) -> None:
         self.cameras[name].ref_T_cam = np.asarray(
             ref_T_cam, dtype=np.float64).reshape(4, 4)
+
+    def _size(self, tag_id: int) -> float:
+        return self.tag_sizes.get(tag_id, self.tag_size_m)
 
     # ---------------------------------------------------------------- api
 
@@ -275,6 +277,8 @@ class MultiViewTagFuser:
                  group: Sequence[TagObservation]) -> Optional[FusedTag]:
         # Keep one observation per camera (the best, if duplicated).
         per_cam: Dict[str, TagObservation] = {}
+        obj = tag_object_points(self._size(tag_id))
+
         for obs in group:
             prev = per_cam.get(obs.camera)
             if prev is None:
@@ -313,7 +317,7 @@ class MultiViewTagFuser:
                 fused.max_ray_angle_deg = angle
             return fused
 
-        R, t, rms = kabsch(self._obj, corners_3d)
+        R, t, rms = kabsch(obj, corners_3d)
 
         # Scale check: the triangulated square should have the edge length
         # you measured. This is insensitive in the same way the fit residual
@@ -321,7 +325,7 @@ class MultiViewTagFuser:
         # a badly wrong baseline, not a slightly wrong one.
         edges = [float(np.linalg.norm(corners_3d[i] - corners_3d[(i + 1) % 4]))
                  for i in range(4)]
-        edge_err = float(abs(np.mean(edges) - self.tag_size_m))
+        edge_err = float(abs(np.mean(edges) - self._size(tag_id)))
 
         if rms > self.max_fit_rms_m:
             fused = self._pnp_average(tag_id, per_cam, names)

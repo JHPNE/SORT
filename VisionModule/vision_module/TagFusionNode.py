@@ -33,7 +33,7 @@ from vision_module.MultiViewTagFuser import (
 )
 from vision_module import TagMessage 
 
-CAMERA_NAMES = ["k4a_rgb", "realsense_color", "secondary_color"]
+CAMERA_NAMES = ["arm_camera", "realsense_color", "secondary_color"]
 DETECTION_TOPIC_NS = "/vision/tag_detections"
 
 # ref_T_cam, metres. Paste output from extrinsic_calibration.py here.
