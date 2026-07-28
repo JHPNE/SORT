@@ -85,6 +85,7 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
             'nod':    self.nod,
             'shake':  self.shake,
             'search': self.search,
+            'home':   self.home,
         }
 
         # Background ROS 2 executor thread for real-time subscription callbacks

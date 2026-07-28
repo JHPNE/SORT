@@ -21,6 +21,7 @@ setup(
             'tag_detector = vision_module.TagDetectorNode:main',
             'world_space = vision_module.WorldSpaceNode:main',
             'apriltag_publisher = vision_module.apriltag_publisher:main',
+            'synthetic_camera = vision_module.synthetic_camera:main',
         ],
     },
 )

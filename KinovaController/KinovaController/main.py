@@ -1,4 +1,5 @@
 import rclpy
+from rclpy.executors import ExternalShutdownException
 import time
 
 from .arm_mover import KinovaMover
@@ -10,27 +11,21 @@ def main(args=None):
     node = KinovaMover()
 
     try:
-        node.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
-        time.sleep(2.0)
-
         node.get_logger().info('Fahre zu HOME_POSITION...')
         node.move_arm_to(HOME_POSITION, 5)
         time.sleep(5.0)
 
-        # 1. AprilTag im Raum suchen & Kamera darauf ausrichten (nutzt den Umschau-Sweep wenn nötig)
-        node.get_logger().info('1. Starte Suche & Ausrichten zum AprilTag...')
-        node.orient_to_person()
-        time.sleep(1.0)
-
-        # 2. Per IK-Solver direkt zur 3D-Position des erkannten AprilTags bewegen
-        node.get_logger().info('2. Starte Hinbewegen zum erkannten AprilTag per IK-Solver...')
-        node.move_to_tag_ik(duration=10)
-        node.get_logger().info('Test abgeschlossen.')
-        time.sleep(3.0)
-
+        node.get_logger().info(
+            'KinovaMover bereit! Lauscht aktiv auf Befehle auf /arm/gesture (nod, shake, search) '
+            'und AprilTags auf /vision/apriltag_pose. (Beenden mit Strg+C)'
+        )
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

@@ -102,6 +102,7 @@ class VisualTracker:
         start_time = time.time()
         step_count = 0
 
+        centered = False
         while time.time() - start_time < _MAX_ALIGN_TIME_S:
             step_count += 1
             self._tag_event.clear()
@@ -129,7 +130,11 @@ class VisualTracker:
 
             # Prüfe, ob die Person im Bild zentriert ist (innerhalb Deadzone ~2.8°)
             if abs(h_angle) < _DEAD_ZONE and abs(v_angle) < _DEAD_ZONE:
-                self.get_logger().info('[Ausrichtung] AprilTag erfolgreich im Kamerabild zentriert!')
+                centered = True
+                self.get_logger().info(
+                    f'[Ausrichtung STATUS] ERFOLGREICH ZENTRIERT! AprilTag ist genau in Bildmitte '
+                    f'(Horiz={math.degrees(h_angle):+.1f}°, Vert={math.degrees(v_angle):+.1f}° <= {_DEAD_ZONE:.2f} rad).'
+                )
                 break
 
             # Zielposition berechnen
@@ -146,6 +151,12 @@ class VisualTracker:
             self.move_arm_to(target, duration=int(_STEP_DURATION_S))
             time.sleep(_STEP_DURATION_S)
 
-        self.get_logger().info('[Ausrichtung] Fertig. Starte Geste...')
+        if centered:
+            self.get_logger().info('[Ausrichtung FINISH] Zentrierung ERFOLGREICH abgeschlossen -> Starte nächste Aktion.')
+        else:
+            self.get_logger().warn(
+                f'[Ausrichtung FINISH] ZEITLIMIT ({_MAX_ALIGN_TIME_S:.1f}s) erreicht ohne vollständige Zentrierung -> Fahre dennoch fort.'
+            )
+
         time.sleep(0.5)
 
