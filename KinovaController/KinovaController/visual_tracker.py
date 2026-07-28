@@ -46,6 +46,23 @@ class VisualTracker:
         self._last_orientation = (q.x, q.y, q.z, q.w)
         self._tag_event.set()
 
+        # Dynamic Obstacle Tracking für Weg 2: Tag-Position in Worldspace umrechnen & registrieren
+        if hasattr(self, 'ik_solver') and self.ik_solver.is_available and self.ik_solver.model:
+            from .positions import HOME_POSITION
+            q_current = getattr(self, '_current_oriented_position', HOME_POSITION)
+            fk_res = self.ik_solver.get_forward_kinematics(q_current)
+            if fk_res is not None:
+                p_ee, R_ee = fk_res
+                target_cam = np.array([p.x, p.y, p.z])
+                target_base = p_ee + R_ee @ target_cam
+                self.ik_solver.collision_handler.update_dynamic_obstacle(
+                    "apriltag_person",
+                    float(target_base[0]),
+                    float(target_base[1]),
+                    float(target_base[2]),
+                    radius=0.20
+                )
+
         now = time.time()
         if now - self._last_log_time >= 2.0:
             self._last_log_time = now
@@ -55,6 +72,28 @@ class VisualTracker:
                 f'Entfernung: {dist:.2f}m | '
                 f'Orientierung Quaternion: (x={q.x:.2f}, y={q.y:.2f}, z={q.z:.2f}, w={q.w:.2f})'
             )
+
+    def _worldspace_tags_callback(self, msg: String) -> None:
+        """
+        Empfängt das aggregierte WorldSpace-Paket von WorldSpaceNode (/vision/tags).
+        Trägt alle im Raum erkannten Tags direkt in den Pinocchio Collision Handler ein.
+        """
+        try:
+            from vision_module import TagMessage
+            packet = TagMessage.decode(msg.data)
+            observations = TagMessage.to_observations(packet)
+            for obs in observations:
+                x, y, z = obs.pos
+                if hasattr(self, 'ik_solver') and self.ik_solver.is_available and self.ik_solver.model:
+                    self.ik_solver.collision_handler.update_dynamic_obstacle(
+                        f"world_tag_{obs.id}",
+                        float(x),
+                        float(y),
+                        float(z),
+                        radius=0.20
+                    )
+        except Exception:
+            pass
 
     def _slow_search_sweep(self) -> bool:
         """

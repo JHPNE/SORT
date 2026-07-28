@@ -25,9 +25,11 @@ class AprilTagPublisher(Node):
         self.bridge = CvBridge()
         self.topics = TopicList()
 
-        # Parameter
-        self.declare_parameter('target_tag_id', 3)          # Welcher Tag gesucht wird (-1 für beliebigen)
-        self.declare_parameter('tag_size_m', 0.06)         # Tag-Seitenlänge in Metern (z. B. 10 cm)
+        # =====================================================================
+        # TODO: [LABOR] APRILTAG-ID UND REALE GRÖSSE ANPASSEN
+        # =====================================================================
+        self.declare_parameter('target_tag_id', 3)          # TODO: Welcher Tag gesucht wird (-1 für beliebigen Tag)
+        self.declare_parameter('tag_size_m', 0.06)         # TODO: Reale AprilTag-Seitenlänge in Metern im Labor (z. B. 0.06m oder 0.10m)
         self.declare_parameter('tag_family', 'tag36h11')
         self.declare_parameter('image_topic', self.topics.camera.arm_camera.name)
 

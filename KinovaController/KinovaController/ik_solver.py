@@ -15,9 +15,13 @@ except ImportError:
     _PINOCCHIO_AVAILABLE = False
 
 
+from .collision_handler import PinocchioCollisionHandler
+
+
 class KinovaIKSolver:
     """
-    Inverse Kinematics Solver mit Pinocchio (Levenberg-Marquardt / CLIK Algorithmus).
+    Inverse Kinematics Solver mit Pinocchio (Levenberg-Marquardt / CLIK Algorithmus)
+    und integriertem PinocchioCollisionHandler.
     """
 
     def __init__(self, urdf_xml_or_path: str = None, end_effector_frame: str = "end_effector_link"):
@@ -25,6 +29,7 @@ class KinovaIKSolver:
         self.model = None
         self.data = None
         self.ee_frame_id = None
+        self.collision_handler = PinocchioCollisionHandler()
 
         if not _PINOCCHIO_AVAILABLE:
             print("[KinovaIKSolver] WARNUNG: Pinocchio-Bibliothek nicht installiert (pip install pinocchio).")
@@ -47,6 +52,9 @@ class KinovaIKSolver:
                 self.model = pin.buildModelFromUrdf(urdf_xml_or_path)
 
             self.data = self.model.createData()
+
+            # Collision Handler mit aktuellem Modell initialisieren
+            self.collision_handler.set_models(self.model)
 
             # End-Effektor Frame suchen oder Fallback auf den letzten Frame
             if self.model.existFrame(end_effector_frame):
@@ -136,7 +144,12 @@ class KinovaIKSolver:
                 err = err_pos
 
             if np.linalg.norm(err) < eps:
-                return q[:6].tolist()
+                joint_angles = q[:6].tolist()
+                is_valid, reason = self.collision_handler.is_configuration_valid(joint_angles)
+                if not is_valid:
+                    print(f"[KinovaIKSolver] IK-Lösung verworfen wegen Kollision: {reason}")
+                    return None
+                return joint_angles
 
             # Jacobian berechnen
             J = pin.computeFrameJacobian(
@@ -152,7 +165,12 @@ class KinovaIKSolver:
             q = pin.integrate(self.model, q, dq)
 
         print("[KinovaIKSolver] IK Konvergenz nicht innerhalb max_iter erreicht.")
-        return q[:6].tolist()
+        joint_angles = q[:6].tolist()
+        is_valid, reason = self.collision_handler.is_configuration_valid(joint_angles)
+        if not is_valid:
+            print(f"[KinovaIKSolver] IK-Lösung verworfen wegen Kollision: {reason}")
+            return None
+        return joint_angles
 
 
 class IKMovement:

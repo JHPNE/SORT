@@ -68,6 +68,13 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
 
         self.create_subscription(
             String,
+            '/vision/tags',
+            self._worldspace_tags_callback,
+            10
+        )
+
+        self.create_subscription(
+            String,
             self.topics.arm.gesture.name,
             self._gesture_callback,
             10
