@@ -89,7 +89,9 @@ class WorldSpaceNode(Node):
         models = {n: CameraModel(n, np.eye(3), np.zeros((5, 1)),
                                  EXTRINSICS.get(n, np.eye(4)))
                   for n in self.camera_names}
-        self.fuser = MultiViewTagFuser(models, tag_size, tag_sizes=tag_sizes())
+        self.fuser = MultiViewTagFuser(models,
+                               default_tag_size_m=tag_size,
+                               tag_sizes=tag_sizes())
 
         # camera -> (stamp, [TagObservation], frame_id)
         self._buf: Dict[str, Tuple[float, List[TagObservation], str]] = {}

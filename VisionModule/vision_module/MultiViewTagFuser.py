@@ -229,32 +229,23 @@ def tag_object_points(tag_size_m: float) -> np.ndarray:
 
 class MultiViewTagFuser:
     def __init__(self,
-                 cameras: Dict[str, CameraModel],
-                 tag_sizes: Optional[Dict[int, float]] = None,
-                 min_ray_angle_deg: float = 3.0,
-                 max_fit_rms_m: float = 0.005):
-        """
-        min_ray_angle_deg  below this the cameras are effectively co-located,
-                           so we fall back to averaging PnP poses instead of
-                           triangulating an ill-conditioned depth.
-        max_fit_rms_m      Kabsch residual above this rejects the triangulated
-                           result and falls back to pose averaging. This is a
-                           GROSS error trap only - see the module docstring.
-                           Expect roughly 30x this value in position error, so
-                           the 5 mm default trips at around 150 mm of error.
-                           It will not catch a few mm of extrinsic drift.
-        """
+             cameras: Dict[str, CameraModel],
+             default_tag_size_m: float = 0.05,
+             tag_sizes: Optional[Dict[int, float]] = None,
+             min_ray_angle_deg: float = 3.0,
+             max_fit_rms_m: float = 0.005):
         self.cameras = dict(cameras)
+        self.default_tag_size_m = float(default_tag_size_m)
+        self.tag_sizes = dict(tag_sizes or {})
         self.min_ray_angle_deg = float(min_ray_angle_deg)
         self.max_fit_rms_m = float(max_fit_rms_m)
-        self.tag_sizes = dict(tag_sizes or {})
 
     def set_extrinsics(self, name: str, ref_T_cam: np.ndarray) -> None:
         self.cameras[name].ref_T_cam = np.asarray(
             ref_T_cam, dtype=np.float64).reshape(4, 4)
 
     def _size(self, tag_id: int) -> float:
-        return self.tag_sizes.get(tag_id, self.tag_size_m)
+        return self.tag_sizes.get(tag_id, self.default_tag_size_m)
 
     # ---------------------------------------------------------------- api
 
