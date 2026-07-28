@@ -23,7 +23,11 @@ def main(args=None):
 
     node.get_logger().info('do nodding')
     node.nod()
-    time.sleep(5.0)
+    time.sleep(6.0)
+
+    node.get_logger().info('do shaking')
+    node.shake()
+    time.sleep(6.0)
 
     node.destroy_node()
     rclpy.shutdown()

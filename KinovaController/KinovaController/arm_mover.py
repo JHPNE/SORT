@@ -18,7 +18,6 @@ class KinovaMover(Node, ArmGestures):
 
         self._publisher = self.create_publisher(
             JointTrajectory,
-            # '/joint_trajectory_controller/joint_trajectory',
             self.topics.arm.joint_trajectory.name,
             10
         )
