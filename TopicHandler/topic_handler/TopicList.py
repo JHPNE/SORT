@@ -25,6 +25,9 @@ class ArmTopics(BaseModel):
     publish_test: TopicSpec = TopicSpec(
         name="/publish_test", msg_type="trajectory_msgs/JointTrajectory"
     )
+    gesture: TopicSpec = TopicSpec(
+        name="/arm/gesture", msg_type="std_msgs/msg/String"
+    )
 
 class FeedbackTopics(BaseModel):
     ha_lights: TopicSpec = TopicSpec(
