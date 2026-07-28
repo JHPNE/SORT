@@ -19,7 +19,7 @@ import rclpy
 from rclpy.node import Node
 
 from vision_module.WorldClient import TagWorld
-from vision_module.Zones import ZoneMap, ZONES
+from vision_module.Zone import ZoneMap, ZONES
 from vision_module import TagRegistry
 
 
