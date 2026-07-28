@@ -16,7 +16,7 @@ setup(
     entry_points={
         'console_scripts': [
             'tag_detector = vision_module.TagDetectorNode:main',
-            'world_space  = vision_module.WorldSpaceNode:main',
+            'world_space = vision_module.WorldSpaceNode:main',
         ],
     },
 )
