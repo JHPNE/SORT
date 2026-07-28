@@ -21,79 +21,71 @@ class KinovaMover(Node):
 
         self._publisher = self.create_publisher(
             JointTrajectory, 
-            '/joint_trajectory_controller/joint_trajectory', 
+            # '/joint_trajectory_controller/joint_trajectory',
+            self.topics.arm.joint_trajectory.name, 
             10
         )
 
+        self.get_logger().info('Warte 2 Sekunden, bis das System bereit ist...')
+        time.sleep(2.0)
+        self.move_arm_to(HOME_POSITION, duration=5)
+        time.sleep(5.0)
+
+    def move_sequence(self, steps: list[tuple[list[float], int]]):
+        """
+        Publish a sequence of joint positions as a single JointTrajectory message.
+
+        :param steps: List of (joint_positions, time_from_start_sec) tuples.
+        """
+        for i, (positions, _) in enumerate(steps):
+            if len(positions) != 6:
+                self.get_logger().error(
+                    f'Step {i}: Invalid number of joints. Expected: 6, Received: {len(positions)}'
+                )
+                return
+
+        msg = JointTrajectory()
+        msg.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
+
+        for positions, t in steps:
+            point = JointTrajectoryPoint()
+            point.positions = list(positions)
+            point.time_from_start.sec = int(t)
+            msg.points.append(point)
+
+        self.get_logger().info(f'Sending sequence of {len(steps)} point(s) to Kinova Gen3...')
+        self._publisher.publish(msg)
+
     def move_arm_to(self, joint_positions=None, duration=10):
+        """Convenience wrapper to move to a single joint position."""
         if joint_positions is None:
             joint_positions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        
-        if len(joint_positions) != 6:
-            self.get_logger().error(f'Invalid number of joints. Expected: 6, Received: {len(joint_positions)}')
-            return
 
-        msg = JointTrajectory()
-        
-        msg.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
-        
-        point = JointTrajectoryPoint()
-        point.positions = joint_positions
-        point.time_from_start.sec = int(duration)
-        
-        msg.points.append(point)
-        
-        self.get_logger().info(f'Sending msg to Kinova Gen3: {msg}')
-        self._publisher.publish(msg)
+        self.move_sequence([(joint_positions, duration)])
 
-    def move_arm_to_home_pose(self):
-        msg = JointTrajectory()
-        msg.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
+    # def move_arm_to_home_pose(self):
+    #     msg = JointTrajectory()
+    #     msg.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
         
-        point = JointTrajectoryPoint()
-        point.positions = HOME_POSITION 
-        point.time_from_start.sec = 5
+    #     point = JointTrajectoryPoint()
+    #     point.positions = HOME_POSITION 
+    #     point.time_from_start.sec = 5
         
-        msg.points.append(point)
-        self.get_logger().info('Sende home Bewegungsbefehl an den Kinova Gen3...')
-        self._publisher.publish(msg)
-        self.get_logger().info('Home-Befehl gesendet!')
+    #     msg.points.append(point)
+    #     self.get_logger().info('Sende home Bewegungsbefehl an den Kinova Gen3...')
+    #     self._publisher.publish(msg)
+    #     self.get_logger().info('Home-Befehl gesendet!')
 
     def nod(self):
-        msg = JointTrajectory()
-        msg.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
-        
-        # Nod down
-        point1 = JointTrajectoryPoint()
-        point1.positions = list(NOD_POSITION)
-        point1.positions[4] += 0.5  # Joint 2 (Wrist Pitch) 
-        point1.time_from_start.sec = 2
-        msg.points.append(point1)
+        nod_down = list(NOD_POSITION);  nod_down[4] += 0.5   # Wrist pitch down
+        nod_up   = list(NOD_POSITION);  nod_up[4]   -= 0.5   # Wrist pitch up
+        nod_end  = list(HOME_POSITION); nod_end[4]  += 0.5   # Return near home
 
-        # Nod up
-        point2 = JointTrajectoryPoint()
-        point2.positions = list(NOD_POSITION)
-        point2.positions[4] -= 0.5
-        point2.time_from_start.sec = 4
-        msg.points.append(point2)
-        
-        # Nod down again
-        point3 = JointTrajectoryPoint()
-        point3.positions = list(HOME_POSITION)
-        point3.positions[5] += 0.5
-        point3.time_from_start.sec = 6
-        msg.points.append(point3)
-
-        # Back to Home
-        # point4 = JointTrajectoryPoint()
-        # point4.positions = list(HOME_POSITION)
-        # point4.time_from_start.sec = 10
-        # msg.points.append(point4)
-        
-
-        self.get_logger().info('Sende Nod-Befehl (Nicken) an den Kinova Gen3...')
-        self._publisher.publish(msg)
-        self.get_logger().info('Nod-Befehl gesendet!')
+        self.move_sequence([
+            (nod_down, 2),
+            (nod_up,   4),
+            (nod_end,  6),
+        ])
 
 def main(args=None):
     print("test")
@@ -104,7 +96,7 @@ def main(args=None):
     time.sleep(2.0)
     
     node.get_logger().info('move to home position')
-    node.move_arm_to_home_pose()
+    node.move_arm_to(HOME_POSITION, 5)
     node.get_logger().info('Warte 5 Sekunden, bis Home-Position erreicht ist...')
     time.sleep(5.0)
     
