@@ -59,6 +59,26 @@ class KinovaIKSolver:
             print(f"[KinovaIKSolver] Fehler beim Laden der URDF: {e}")
             return False
 
+    def get_forward_kinematics(self, q: list[float]) -> tuple[np.ndarray, np.ndarray] | None:
+        """
+        Berechnet die Vorwärtskinematik (Position und Rotationsmatrix des End-Effektors)
+        für gegebene Gelenkwinkel q.
+        """
+        if not self.is_available or self.model is None:
+            return None
+
+        try:
+            q_arr = np.array(q, dtype=np.float64)
+            pin.forwardKinematics(self.model, self.data, q_arr)
+            pin.updateFramePlacements(self.model, self.data)
+
+            pos = self.data.oMf[self.ee_frame_id].translation.copy()
+            rot = self.data.oMf[self.ee_frame_id].rotation.copy()
+            return pos, rot
+        except Exception as e:
+            print(f"[KinovaIKSolver] Fehler bei Vorwärtskinematik: {e}")
+            return None
+
     def solve_position(
         self,
         x: float,
@@ -138,10 +158,10 @@ class IKMovement:
     Enthält alle High-Level Bewegungsfunktionen, die auf dem Pinocchio IK-Solver basieren.
     """
 
-    def move_to_cartesian_position(self, x: float, y: float, z: float, duration: int = 5) -> bool:
+    def move_to_cartesian_position(self, x: float, y: float, z: float, duration: int = 5, q_init: list[float] = None) -> bool:
         """
         Berechnet per Pinocchio Inverse Kinematics (IK) die Gelenkwinkel für
-        die 3D-Zielkoordinaten (x, y, z) in Metern und bewegt den Arm dorthin.
+        die 3D-Zielkoordinaten (x, y, z) in Metern im Base-Frame und bewegt den Arm dorthin.
         """
         if not self.ik_solver.is_available or self.ik_solver.model is None:
             self.get_logger().error(
@@ -150,12 +170,65 @@ class IKMovement:
             )
             return False
 
-        joint_angles = self.ik_solver.solve_position(x, y, z)
+        if q_init is None and hasattr(self, '_current_oriented_position'):
+            q_init = self._current_oriented_position
+
+        joint_angles = self.ik_solver.solve_position(x, y, z, q_init=q_init)
         if joint_angles is None:
             self.get_logger().error(f'Keine IK-Lösung für Position ({x:.2f}, {y:.2f}, {z:.2f}) m gefunden.')
             return False
 
         self.get_logger().info(f'IK-Lösung für ({x:.2f}, {y:.2f}, {z:.2f}) m gefunden → fahre Ziel an.')
+        self._current_oriented_position = joint_angles
         self.move_arm_to(joint_angles, duration=duration)
         return True
+
+    def move_to_tag_ik(self, duration: int = 5, offset_z: float = 0.2) -> bool:
+        """
+        Wartet auf die 3D-Position eines AprilTags und bewegt den End-Effektor per Pinocchio IK dorthin.
+
+        :param duration: Bewegungsdauer in Sekunden.
+        :param offset_z: Sicherheitsabstand vor dem Tag in Metern.
+        """
+        if not hasattr(self, '_tag_event'):
+            self.get_logger().error('VisualTracker nicht initialisiert!')
+            return False
+
+        if not self.ik_solver.is_available or self.ik_solver.model is None:
+            self.get_logger().error(
+                'IK-Solver nicht bereit! Stelle sicher, dass pinocchio installiert ist '
+                'und die URDF auf /robot_description publiziert wurde.'
+            )
+            return False
+
+        self._tag_event.clear()
+        self.get_logger().info('[IK-Bewegung] Warte auf AprilTag-Position...')
+        tag_found = self._tag_event.wait(timeout=5.0)
+
+        if not tag_found or getattr(self, '_last_position', None) is None:
+            self.get_logger().warn('[IK-Bewegung] Kein AprilTag empfangen!')
+            return False
+
+        x, y, z = self._last_position
+        self.get_logger().info(
+            f'[IK-Bewegung] Tag-Position im Kamera-Frame erkannt: x={x:+.3f}m, y={y:+.3f}m, z={z:+.3f}m → Berechne IK...'
+        )
+
+        from .positions import HOME_POSITION
+        q_current = getattr(self, '_current_oriented_position', HOME_POSITION)
+        fk_res = self.ik_solver.get_forward_kinematics(q_current)
+
+        if fk_res is not None:
+            p_ee, R_ee = fk_res
+            # Abzug des Sicherheitsabstands offset_z in Sichtrichtung (Kamera-Z-Achse)
+            target_cam = np.array([x, y, max(0.05, z - offset_z)])
+            target_base = p_ee + R_ee @ target_cam
+            target_x, target_y, target_z = float(target_base[0]), float(target_base[1]), float(target_base[2])
+            self.get_logger().info(
+                f'[IK-Bewegung] Zielposition im Base-Frame: x={target_x:+.3f}m, y={target_y:+.3f}m, z={target_z:+.3f}m'
+            )
+            return self.move_to_cartesian_position(target_x, target_y, target_z, duration=duration, q_init=q_current)
+        else:
+            self.get_logger().warn('[IK-Bewegung] FK konnte nicht berechnet werden. Nutze Direktkoordinaten.')
+            return self.move_to_cartesian_position(x, y, z, duration=duration, q_init=q_current)
 
