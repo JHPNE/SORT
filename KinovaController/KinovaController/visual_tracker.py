@@ -8,6 +8,8 @@ and slow search sweep (_slow_search_sweep) using joint_4 and joint_5.
 import time
 import math
 import threading
+import numpy as np
+from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from .positions import NOD_POSITION
 

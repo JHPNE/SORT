@@ -155,7 +155,7 @@ class KinovaIKSolver:
             J = pin.computeFrameJacobian(
                 self.model, self.data, q, self.ee_frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
             )
-            if target_rot is None:
+            if target_rot is None and J.ndim == 2:
                 J = J[:3, :]  # Nur Positionskomponenten
 
             # Damped Pseudo-Inverse (Levenberg-Marquardt Schritt)
