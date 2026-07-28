@@ -211,12 +211,17 @@ class IKMovement:
         self.move_arm_to(joint_angles, duration=duration)
         return True
 
-    def move_to_tag_ik(self, duration: int = 5, offset_z: float = 0.2) -> bool:
+    def move_to_arm_camera_tag_ik(self, duration: int = 5, offset_z: float = 0.15) -> bool:
         """
-        Wartet auf die 3D-Position eines AprilTags und bewegt den End-Effektor per Pinocchio IK dorthin.
+        [ARM-KAMERA / EYE-IN-HAND]
+        Wartet auf die 3D-Position eines AprilTags der Arm-Kamera und bewegt den End-Effektor per Pinocchio IK dorthin.
+
+        TODO: [GREIFEN / OFFSET] offset_z anpassen:
+          - 0.15m (15 cm): Sicherheitsabstand / Vorpositionierung vor dem Tag
+          - 0.03m - 0.05m (3-5 cm): Greifposition (Greiferfinger umschließen das Objekt)
 
         :param duration: Bewegungsdauer in Sekunden.
-        :param offset_z: Sicherheitsabstand vor dem Tag in Metern (Standard: 0.2m).
+        :param offset_z: Sicherheitsabstand vor dem Tag in Metern (Standard: 0.15m = 15 cm).
         """
         if not hasattr(self, '_tag_event'):
             self.get_logger().error('VisualTracker nicht initialisiert!')
@@ -230,16 +235,16 @@ class IKMovement:
             return False
 
         self._tag_event.clear()
-        self.get_logger().info('[IK-Bewegung] Warte auf AprilTag-Position...')
+        self.get_logger().info('[ArmKamera-IK] Warte auf AprilTag-Position der Arm-Kamera...')
         tag_found = self._tag_event.wait(timeout=5.0)
 
         if not tag_found or getattr(self, '_last_position', None) is None:
-            self.get_logger().warn('[IK-Bewegung] Kein AprilTag empfangen!')
+            self.get_logger().warn('[ArmKamera-IK] Kein AprilTag von Arm-Kamera empfangen!')
             return False
 
         x, y, z = self._last_position
         self.get_logger().info(
-            f'[IK-Bewegung] Tag-Position im Kamera-Frame erkannt: x={x:+.3f}m, y={y:+.3f}m, z={z:+.3f}m → Berechne IK...'
+            f'[ArmKamera-IK] Tag-Position im ArmKamera-Frame erkannt: x={x:+.3f}m, y={y:+.3f}m, z={z:+.3f}m → Berechne IK...'
         )
 
         from .positions import HOME_POSITION
@@ -253,12 +258,39 @@ class IKMovement:
             target_base = p_ee + R_ee @ target_cam
             target_x, target_y, target_z = float(target_base[0]), float(target_base[1]), float(target_base[2])
             self.get_logger().info(
-                f'[IK-Bewegung] Zielposition im Base-Frame: x={target_x:+.3f}m, y={target_y:+.3f}m, z={target_z:+.3f}m'
+                f'[ArmKamera-IK] Zielposition im Base-Frame: x={target_x:+.3f}m, y={target_y:+.3f}m, z={target_z:+.3f}m'
             )
             return self.move_to_cartesian_position(target_x, target_y, target_z, duration=duration, q_init=q_current)
         else:
-            self.get_logger().warn('[IK-Bewegung] FK konnte nicht berechnet werden. Nutze Direktkoordinaten.')
+            self.get_logger().warn('[ArmKamera-IK] FK konnte nicht berechnet werden. Nutze Direktkoordinaten.')
             return self.move_to_cartesian_position(x, y, z, duration=duration, q_init=q_current)
+
+    # Alias für Abwärtskompatibilität
+    move_to_tag_ik = move_to_arm_camera_tag_ik
+
+    def move_to_worldspace_tag_ik(self, tag_id: int = 3, duration: int = 5, offset_z: float = 0.15) -> bool:
+        """
+        Bewegt den Arm per Pinocchio IK direkt zu einem Tag aus dem WorldSpaceNode (/vision/tags).
+
+        TODO: [GREIFEN / OFFSET] offset_z anpassen:
+          - 0.15m (15 cm): Sicherheitsabstand / Vorpositionierung
+          - 0.03m - 0.05m (3-5 cm): Greifposition zum Schließen des Greifers
+
+        :param tag_id: ID des AprilTags (z. B. 3).
+        :param duration: Anfahr-Dauer in Sekunden.
+        :param offset_z: Sicherheitsabstand vor dem Objekt in Metern.
+        """
+        world_poses = getattr(self, '_worldspace_tag_poses', {})
+        if tag_id not in world_poses:
+            self.get_logger().error(f'[WorldSpace-IK] Kein Tag mit ID {tag_id} auf /vision/tags bekannt!')
+            return False
+
+        x_base, y_base, z_base = world_poses[tag_id]
+        self.get_logger().info(
+            f'[WorldSpace-IK] AprilTag {tag_id} im WorldSpace erkannt: '
+            f'x={x_base:+.3f}m, y={y_base:+.3f}m, z={z_base:+.3f}m → Berechne IK...'
+        )
+        return self.move_to_cartesian_position(x_base, y_base, z_base + offset_z, duration=duration)
 
 
 

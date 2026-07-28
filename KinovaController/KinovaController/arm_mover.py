@@ -146,13 +146,55 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
         self.get_logger().info('Führe Geste aus: "search" (Umschau-Sweep)...')
         super().search()
 
+    def goto_arm_camera_tag(self):
+        """Bewegt den Arm per IK zum AprilTag (Einzelkamera am Arm)."""
+        self.get_logger().info('Führe IK-Anfahrt zum AprilTag der Arm-Kamera aus...')
+        self.move_to_arm_camera_tag_ik(duration=5, offset_z=0.15)
+
+    goto_tag = goto_arm_camera_tag
+
     def _gesture_callback(self, msg: String) -> None:
         """Handles incoming gesture string on /arm/gesture."""
         name = msg.data.strip().lower()
+
+        # 1. WorldSpace Anfahrt: "goto_worldspace_tag_3", "goto_world_3", "goto_tag_3"
+        if name.startswith("goto_worldspace_tag_") or name.startswith("goto_world_") or name.startswith("goto_tag_"):
+            try:
+                tag_id = int(name.rsplit("_", 1)[1])
+                self.get_logger().info(f'Empfangen: Anfahrt zu Tag {tag_id} im WorldSpace...')
+                thread = threading.Thread(target=self.move_to_worldspace_tag_ik, kwargs={"tag_id": tag_id}, daemon=True)
+                thread.start()
+                return
+            except ValueError:
+                pass
+
+        # 2. WorldSpace Ausrichtung: "orient_worldspace_tag_3", "orient_world_3"
+        if name.startswith("orient_worldspace_tag_") or name.startswith("orient_world_"):
+            try:
+                tag_id = int(name.rsplit("_", 1)[1])
+                self.get_logger().info(f'Empfangen: Kamera-Ausrichtung zu Tag {tag_id} im WorldSpace...')
+                thread = threading.Thread(target=self.orient_to_worldspace_tag, kwargs={"tag_id": tag_id}, daemon=True)
+                thread.start()
+                return
+            except ValueError:
+                pass
+
+        # 3. Arm-Kamera Anfahrt: "goto_arm_camera_tag", "goto_arm_tag", "goto_tag"
+        if name in ("goto_arm_camera_tag", "goto_arm_tag", "goto_tag", "tag"):
+            thread = threading.Thread(target=self.goto_arm_camera_tag, daemon=True)
+            thread.start()
+            return
+
+        # 4. Arm-Kamera Ausrichtung: "orient_arm_camera_tag", "orient_arm_tag"
+        if name in ("orient_arm_camera_tag", "orient_arm_tag"):
+            thread = threading.Thread(target=self.orient_to_arm_camera_tag, daemon=True)
+            thread.start()
+            return
+
         gesture_fn = self._gestures.get(name)
 
         if gesture_fn is None:
-            known = ', '.join(self._gestures.keys())
+            known = ', '.join(list(self._gestures.keys()) + ['goto_arm_camera_tag', 'goto_worldspace_tag_<ID>', 'orient_worldspace_tag_<ID>'])
             self.get_logger().warn(f'Unknown gesture: "{name}". Known gestures: [{known}]')
             return
 

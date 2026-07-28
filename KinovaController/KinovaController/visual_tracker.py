@@ -76,14 +76,20 @@ class VisualTracker:
     def _worldspace_tags_callback(self, msg: String) -> None:
         """
         Empfängt das aggregierte WorldSpace-Paket von WorldSpaceNode (/vision/tags).
-        Trägt alle im Raum erkannten Tags direkt in den Pinocchio Collision Handler ein.
+        Trägt alle im Raum erkannten Tags direkt in den Pinocchio Collision Handler ein
+        und speichert ihre WorldSpace-Koordinaten für IK-Anfahrten.
         """
+        if not hasattr(self, '_worldspace_tag_poses'):
+            self._worldspace_tag_poses = {}
+
         try:
             from vision_module import TagMessage
             packet = TagMessage.decode(msg.data)
             observations = TagMessage.to_observations(packet)
             for obs in observations:
                 x, y, z = obs.pos
+                self._worldspace_tag_poses[obs.id] = (float(x), float(y), float(z))
+
                 if hasattr(self, 'ik_solver') and self.ik_solver.is_available and self.ik_solver.model:
                     self.ik_solver.collision_handler.update_dynamic_obstacle(
                         f"world_tag_{obs.id}",
@@ -129,15 +135,12 @@ class VisualTracker:
 
         return False
 
-    def orient_to_person(self) -> None:
+    def orient_to_arm_camera_tag(self) -> None:
         """
-        Richtet den Arm in einer dynamischen Regelschleife zur erkannten Person aus,
-        bevor eine Geste ausgeführt wird.
-
-        Falls aktuell kein AprilTag im Sichtfeld ist, wird ein langsamer Umschau-Sweep
-        über joint_4/joint_5 gestartet, um den Tag zu suchen.
+        [ARM-KAMERA / EYE-IN-HAND]
+        Richtet den Kamera-Kopf in einer dynamischen Regelschleife zum AprilTag der Arm-Kamera aus.
         """
-        self.get_logger().info('[Ausrichtung] Starte Suche & Ausrichtung zur Person...')
+        self.get_logger().info('[ArmKamera-Ausrichtung] Starte Suche & Ausrichtung zum Arm-Kamera AprilTag...')
         start_time = time.time()
         step_count = 0
 
@@ -191,11 +194,37 @@ class VisualTracker:
             time.sleep(_STEP_DURATION_S)
 
         if centered:
-            self.get_logger().info('[Ausrichtung FINISH] Zentrierung ERFOLGREICH abgeschlossen -> Starte nächste Aktion.')
+            self.get_logger().info(f'[Ausrichtung ERFOLGREICH] Kamera zentriert nach {step_count} Schritten ({time.time() - start_time:.1f}s).')
         else:
-            self.get_logger().warn(
-                f'[Ausrichtung FINISH] ZEITLIMIT ({_MAX_ALIGN_TIME_S:.1f}s) erreicht ohne vollständige Zentrierung -> Fahre dennoch fort.'
-            )
+            self.get_logger().warn(f'[Ausrichtung TIMEOUT] 30s Zeitlimit abgelaufen – fahre mit bestehender Haltung fort.')
 
         time.sleep(0.5)
 
+    # Alias für Abwärtskompatibilität
+    orient_to_person = orient_to_arm_camera_tag
+
+    def orient_to_worldspace_tag(self, tag_id: int = 3) -> bool:
+        """
+        Richtet den Kamera-Kopf gezielt auf ein Tag aus dem WorldSpaceNode (/vision/tags) aus,
+        selbst wenn es sich außerhalb des aktuellen Armkamera-Sichtfeldes befindet.
+        """
+        world_poses = getattr(self, '_worldspace_tag_poses', {})
+        if tag_id not in world_poses:
+            self.get_logger().error(f'[WorldSpace-Ausrichtung] Kein Tag mit ID {tag_id} auf /vision/tags bekannt!')
+            return False
+
+        x_base, y_base, z_base = world_poses[tag_id]
+        self.get_logger().info(f'[WorldSpace-Ausrichtung] Richtet Kamera auf Tag {tag_id} bei WorldSpace ({x_base:+.3f}m, {y_base:+.3f}m, {z_base:+.3f}m) aus...')
+
+        # Ausrichtungs-Winkel berechnen (Azimut & Elevation relative zur Roboterbasis)
+        pan_angle = math.atan2(y_base, x_base)
+        dist_xy = math.sqrt(x_base*x_base + y_base*y_base)
+        tilt_angle = math.atan2(z_base, dist_xy)
+
+        target_pos = list(getattr(self, '_current_oriented_position', NOD_POSITION))
+        target_pos[3] = pan_angle   # joint_4 (Horizontale Ausrichtung)
+        target_pos[4] = -tilt_angle # joint_5 (Vertikale Neigung)
+
+        self._current_oriented_position = target_pos
+        self.move_arm_to(target_pos, duration=2)
+        return True
