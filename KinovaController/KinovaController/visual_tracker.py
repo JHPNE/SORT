@@ -31,11 +31,12 @@ class VisualTracker:
         self._last_orientation: tuple[float, float, float, float] | None = None
         self._current_oriented_position: list[float] = list(NOD_POSITION)
         self._tag_event = threading.Event()
+        self._last_log_time: float = 0.0
 
     def _tag_callback(self, msg: PoseStamped) -> None:
         """
-        Empfängt die 3D-Pose des AprilTags vom VisionModule, loggt alle empfangenen
-        Informationen und setzt das Event für die Ausrichtung / IK-Bewegung.
+        Empfängt die 3D-Pose des AprilTags vom VisionModule, loggt empfangene
+        Informationen gedrosselt und setzt das Event für die Ausrichtung / IK-Bewegung.
         """
         p = msg.pose.position
         q = msg.pose.orientation
@@ -45,12 +46,15 @@ class VisualTracker:
         self._last_orientation = (q.x, q.y, q.z, q.w)
         self._tag_event.set()
 
-        self.get_logger().info(
-            f'[AprilTag empfangen] '
-            f'Position: (x={p.x:+.3f}m, y={p.y:+.3f}m, z={p.z:+.3f}m) | '
-            f'Entfernung: {dist:.2f}m | '
-            f'Orientierung Quaternion: (x={q.x:.2f}, y={q.y:.2f}, z={q.z:.2f}, w={q.w:.2f})'
-        )
+        now = time.time()
+        if now - self._last_log_time >= 2.0:
+            self._last_log_time = now
+            self.get_logger().info(
+                f'[AprilTag empfangen] '
+                f'Position: (x={p.x:+.3f}m, y={p.y:+.3f}m, z={p.z:+.3f}m) | '
+                f'Entfernung: {dist:.2f}m | '
+                f'Orientierung Quaternion: (x={q.x:.2f}, y={q.y:.2f}, z={q.z:.2f}, w={q.w:.2f})'
+            )
 
     def _slow_search_sweep(self) -> bool:
         """

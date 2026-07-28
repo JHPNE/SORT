@@ -62,8 +62,11 @@ class KinovaIKSolver:
             return None
 
         try:
+            q_full = pin.neutral(self.model)
             q_arr = np.array(q, dtype=np.float64)
-            pin.forwardKinematics(self.model, self.data, q_arr)
+            q_full[:min(len(q_arr), self.model.nq)] = q_arr[:min(len(q_arr), self.model.nq)]
+
+            pin.forwardKinematics(self.model, self.data, q_full)
             pin.updateFramePlacements(self.model, self.data)
 
             pos = self.data.oMf[self.ee_frame_id].translation.copy()
@@ -107,10 +110,10 @@ class KinovaIKSolver:
         if not self.is_available or self.model is None:
             return None
 
-        if q_init is None:
-            q = pin.neutral(self.model)
-        else:
-            q = np.array(q_init, dtype=np.float64)
+        q = pin.neutral(self.model)
+        if q_init is not None:
+            q_arr = np.array(q_init, dtype=np.float64)
+            q[:min(len(q_arr), self.model.nq)] = q_arr[:min(len(q_arr), self.model.nq)]
 
         for i in range(max_iter):
             pin.forwardKinematics(self.model, self.data, q)
@@ -127,7 +130,7 @@ class KinovaIKSolver:
                 err = err_pos
 
             if np.linalg.norm(err) < eps:
-                return q.tolist()
+                return q[:6].tolist()
 
             J = pin.computeFrameJacobian(
                 self.model, self.data, q, self.ee_frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
@@ -141,4 +144,4 @@ class KinovaIKSolver:
             q = pin.integrate(self.model, q, dq)
 
         print("[KinovaIKSolver] IK Konvergenz nicht innerhalb max_iter erreicht.")
-        return q.tolist()
+        return q[:6].tolist()
