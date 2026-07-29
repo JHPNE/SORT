@@ -7,6 +7,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from topic_handler.TopicList import TopicList
 from topic_handler.TopicHandlerPublisher import TopicHandlerPublisher
+from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
 
 # Named arm gestures: joint_1..joint_6 target positions (radians), duration in seconds.
 # CHANGE / EXTEND PRESETS HERE
@@ -14,6 +15,13 @@ ARM_GESTURES = {
     'nod': ([0.0, -0.3, 0.3, 0.0, 0.0, 0.0], 2),
     'wave': ([0.0, 0.0, -0.4, 0.4, 0.0, 0.0], 2),
     'home': ([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 3),
+}
+
+# TTS response for each /sorting/result value published by the vision pipeline.
+SORTING_RESULT_FEEDBACK = {
+    'correct': 'You sorted it correctly. Well done!',
+    'incorrect': 'You sorted it wrong. I will fix it.',
+    'uncertain': 'I am uncertain with your sorting. Please double check it.',
 }
 
 
@@ -32,9 +40,13 @@ class FeedbackNode(Node):
         self._arm_pub = TopicHandlerPublisher(
             node=self, topic_spec=topics.arm.joint_trajectory)
 
-    def set_light(self, entity_id: str, service: str = 'turn_on', **params):
+        self._sorting_result_sub = TopicHandlerSubscriber(
+            node=self, topic_spec=topics.sorting.result,
+            callback=self._on_sorting_result)
+
+    def set_light(self, entity_id: str, action: str = 'turn_on', **params):
         """Publish a Home Assistant light command as JSON for a HA bridge node to consume."""
-        payload = {'entity_id': entity_id, 'service': service, 'params': params}
+        payload = {'entity_id': entity_id, 'action': action, **params}
         msg = String()
         msg.data = json.dumps(payload)
         self.get_logger().info(f'HA light command: {msg.data}')
@@ -84,18 +96,18 @@ class FeedbackNode(Node):
         if gesture:
             self.play_gesture(gesture)
 
+    def _on_sorting_result(self, msg: String):
+        """React to the vision pipeline's sorting outcome with the matching TTS feedback."""
+        text = SORTING_RESULT_FEEDBACK.get(msg.data)
+        if text is None:
+            self.get_logger().warning(f'Unknown sorting result: "{msg.data}"')
+            return
+        self.speak(text)
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = FeedbackNode()
-
-    # Example: greet the user with light, speech and an arm gesture.
-    node.give_feedback(
-        light={'entity_id': 'light.living_room', 'service': 'turn_on', 'color_name': 'blue'},
-        text='Hello, this is your robot assistant speaking!',
-        gesture='wave',
-    )
-
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
