@@ -13,6 +13,8 @@ from FeedBackDecisionHandler import SortState, FeedBackDecisionHandler
 from vision_module.Zone import ZONES
 from vision_module.WorldClient import TagWorld
 
+from ControlModule.control_module.GestureClient import GestureClient
+
 # How often the tag world is judged, in seconds.
 DECISION_PERIOD_S = 1.0
 
@@ -28,12 +30,14 @@ class FeedBackGesture(ABC):
 
 class PositiveFeedBackGesture(FeedBackGesture):
     def handle():
-        pass
+        g = GestureClient()
+        g.nod()
 
 
 class NegativeFeedBackGesture(FeedBackGesture):
     def handle():
-        pass
+        g = GestureClient()
+        g.shake()
 
 
 class UnknownFeedBackGesture(FeedBackGesture):
@@ -76,9 +80,9 @@ class FeedbackNode(Node):
         # Remember the last verdict so the same feedback is not repeated every tick.
         self._last_state = None
 
-        self._decision_handler = None
         self._world = TagWorld(self)
         self._decision_handler = FeedBackDecisionHandler(self._world, zones=ZONES)
+
         self.create_timer(DECISION_PERIOD_S, self._on_decision_tick)
         self.get_logger().info(f'Judging the tag world every {DECISION_PERIOD_S}s')
 
@@ -154,13 +158,7 @@ class FeedbackNode(Node):
 
     def play_gesture(self, gesture: FeedBackGesture):
         """Publish a named arm gesture preset as a JointTrajectory."""
-        # TODO: add gestureclient gestures
-        if gesture == PositiveFeedBackGesture:
-            pass
-        elif (gesture == NegativeFeedBackGesture):
-            pass
-        else:
-            pass
+        gesture.handle()
 
 
 

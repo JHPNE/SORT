@@ -24,7 +24,7 @@ TAGS: Dict[int, TagInfo] = {
     5: TagInfo(5, "Organic",  "trash", sorts_to=1),
     6: TagInfo(6, "Unknown",  "trash", sorts_to=1),
     # Human marker (e.g. wristband) - motion node should treat as keep-out
-    7: TagInfo(7, "Human", "human"),
+    67: TagInfo(67, "Human", "human"),
 }
  
  
