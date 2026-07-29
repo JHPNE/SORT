@@ -42,14 +42,13 @@ def _corner_tags() -> Dict[int, TagInfo]:
     return out
  
 TAGS: Dict[int, TagInfo] = {
-    # Zones (A4 sheets)
-    0: TagInfo(0, "PapierZone",   "zone"),
-    1: TagInfo(1, "RestmuellZone", "zone"),
-    2: TagInfo(2, "PlastikZone",  "zone"),
-
+    **_corner_tags(),                                    # <-- missing
+    3: TagInfo(3, "Papier",  "trash", sorts_to=ZONE_PAPIER),
+    4: TagInfo(4, "Plastik", "trash", sorts_to=ZONE_PLASTIK),
+    5: TagInfo(5, "Organic", "trash", sorts_to=ZONE_RESTMUELL),
+    6: TagInfo(6, "Unknown", "trash", sorts_to=ZONE_RESTMUELL),
     67: TagInfo(67, "Human", "human"),
 }
- 
  
 def info(tag_id: int) -> Optional[TagInfo]:
     return TAGS.get(tag_id)
