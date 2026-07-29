@@ -1,26 +1,54 @@
-PapierZone     <- cube 3: local=(+0.182, +0.061, -0.211)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
-  RestmuellZone  <- cube 3: local=(-0.055, +0.046, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
-[INFO] [1785338560.720416912] [tag_reader]: world 'base_link': 3 tag(s)
-  tag   0 PapierZone     xyz=(-0.372, -0.093, +1.324) m  dist=1.378 m  [pnp_avg, 2cam]
-  tag   1 RestmuellZone  xyz=(-0.306, -0.328, +1.323) m  dist=1.397 m  [pnp_avg, 2cam]
-  tag   3 Papier         xyz=(-0.360, -0.286, +1.535) m  dist=1.602 m  [pnp_avg, 2cam]
+[INFO] [1785341372.723202494] [tag_reader]: world 'base_link': 14 tag(s)
+  tag   3 Papier         xyz=(-0.086, -0.100, +1.545) m  dist=1.551 m  [pnp_avg, 2cam]
+  tag   6 UNREGISTERED   xyz=(-0.602, -0.269, +1.650) m  dist=1.777 m  [pnp_avg, 2cam]
+  tag 100 UNREGISTERED   xyz=(-0.130, -0.188, +1.743) m  dist=1.758 m  [pnp_avg, 2cam]
+  tag 101 UNREGISTERED   xyz=(+0.086, -0.115, +1.801) m  dist=1.807 m  [pnp_avg, 2cam]
+  tag 102 UNREGISTERED   xyz=(-0.236, +0.119, +1.749) m  dist=1.769 m  [pnp_avg, 2cam]
+  tag 103 UNREGISTERED   xyz=(-0.045, +0.188, +1.754) m  dist=1.764 m  [pnp_avg, 2cam]
+  tag 104 UNREGISTERED   xyz=(-0.680, -0.400, +1.734) m  dist=1.905 m  [pnp_avg, 2cam]
+  tag 105 UNREGISTERED   xyz=(-0.494, -0.334, +1.734) m  dist=1.834 m  [pnp_avg, 2cam]
+  tag 106 UNREGISTERED   xyz=(-0.790, -0.094, +1.758) m  dist=1.930 m  [pnp_avg, 2cam]
+  tag 107 UNREGISTERED   xyz=(-0.602, -0.031, +1.733) m  dist=1.835 m  [pnp_avg, 2cam]
+  tag 108 UNREGISTERED   xyz=(-0.404, -0.293, +1.735) m  dist=1.805 m  [pnp_avg, 2cam]
+  tag 109 UNREGISTERED   xyz=(-0.216, -0.226, +1.742) m  dist=1.770 m  [pnp_avg, 2cam]
+  tag 110 UNREGISTERED   xyz=(-0.325, +0.080, +1.745) m  dist=1.777 m  [pnp_avg, 2cam]
+  tag 111 UNREGISTERED   xyz=(-0.513, +0.010, +1.737) m  dist=1.812 m  [pnp_avg, 2cam]
   --- zones ---
-  PapierZone     [tag 0]: -
-  RestmuellZone  [tag 1]: -
-  PlastikZone    [tag 2]: -  (zone tag NOT visible)
+  PapierZone     [zone 0]: -
+  RestmuellZone  [zone 1]: -
+  PlastikZone    [zone 2]: -
   unassigned    : 3
-  --- local coords (cube in zone frame) ---
-  PapierZone     <- cube 3: local=(+0.182, +0.062, -0.213)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
-  RestmuellZone  <- cube 3: local=(-0.053, +0.048, -0.211)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
-[INFO] [1785338561.220234585] [tag_reader]: world 'base_link': 3 tag(s)
-  tag   0 PapierZone     xyz=(-0.373, -0.093, +1.322) m  dist=1.377 m  [pnp_avg, 2cam]
-  tag   1 RestmuellZone  xyz=(-0.307, -0.328, +1.321) m  dist=1.395 m  [pnp_avg, 2cam]
-  tag   3 Papier         xyz=(-0.360, -0.285, +1.532) m  dist=1.599 m  [pnp_avg, 2cam]
+  --- zone geometry ---
+  PapierZone     0.345 x 0.232 m, 4/4 corners, plane rms 12.1 mm
+  RestmuellZone  0.324 x 0.201 m, 4/4 corners, plane rms 0.1 mm
+  PlastikZone    0.328 x 0.201 m, 4/4 corners, plane rms 6.2 mm
+  PapierZone     <- cube 3: uv=(+0.075, +0.077) height=+0.213 m  out
+  RestmuellZone  <- cube 3: uv=(+0.088, -0.257) height=+0.204 m  out
+  PlastikZone    <- cube 3: uv=(+0.091, -0.572) height=+0.157 m  out
+[INFO] [1785341373.223531637] [tag_reader]: world 'base_link': 14 tag(s)
+  tag   3 Papier         xyz=(-0.084, -0.099, +1.550) m  dist=1.555 m  [pnp_avg, 2cam]
+  tag   6 UNREGISTERED   xyz=(-0.602, -0.269, +1.647) m  dist=1.774 m  [pnp_avg, 2cam]
+  tag 100 UNREGISTERED   xyz=(-0.128, -0.187, +1.749) m  dist=1.764 m  [pnp_avg, 2cam]
+  tag 101 UNREGISTERED   xyz=(+0.088, -0.115, +1.805) m  dist=1.811 m  [pnp_avg, 2cam]
+  tag 102 UNREGISTERED   xyz=(-0.235, +0.120, +1.750) m  dist=1.770 m  [pnp_avg, 2cam]
+  tag 103 UNREGISTERED   xyz=(-0.044, +0.189, +1.755) m  dist=1.766 m  [pnp_avg, 2cam]
+  tag 104 UNREGISTERED   xyz=(-0.680, -0.400, +1.735) m  dist=1.906 m  [pnp_avg, 2cam]
+  tag 105 UNREGISTERED   xyz=(-0.494, -0.334, +1.733) m  dist=1.833 m  [pnp_avg, 2cam]
+  tag 106 UNREGISTERED   xyz=(-0.790, -0.094, +1.756) m  dist=1.928 m  [pnp_avg, 2cam]
+  tag 107 UNREGISTERED   xyz=(-0.602, -0.031, +1.735) m  dist=1.837 m  [pnp_avg, 2cam]
+  tag 108 UNREGISTERED   xyz=(-0.404, -0.293, +1.736) m  dist=1.807 m  [pnp_avg, 2cam]
+  tag 109 UNREGISTERED   xyz=(-0.215, -0.225, +1.747) m  dist=1.774 m  [pnp_avg, 2cam]
+  tag 110 UNREGISTERED   xyz=(-0.325, +0.080, +1.746) m  dist=1.778 m  [pnp_avg, 2cam]
+  tag 111 UNREGISTERED   xyz=(-0.513, +0.010, +1.737) m  dist=1.812 m  [pnp_avg, 2cam]
   --- zones ---
-  PapierZone     [tag 0]: -
-  RestmuellZone  [tag 1]: -
-  PlastikZone    [tag 2]: -  (zone tag NOT visible)
+  PapierZone     [zone 0]: -
+  RestmuellZone  [zone 1]: -
+  PlastikZone    [zone 2]: -
   unassigned    : 3
-  --- local coords (cube in zone frame) ---
-  PapierZone     <- cube 3: local=(+0.182, +0.061, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
-  RestmuellZone  <- cube 3: local=(-0.058, +0.044, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+  --- zone geometry ---
+  PapierZone     0.348 x 0.232 m, 4/4 corners, plane rms 11.6 mm
+  RestmuellZone  0.324 x 0.202 m, 4/4 corners, plane rms 0.5 mm
+  PlastikZone    0.327 x 0.201 m, 4/4 corners, plane rms 4.8 mm
+  PapierZone     <- cube 3: uv=(+0.072, +0.075) height=+0.213 m  out
+  RestmuellZone  <- cube 3: uv=(+0.087, -0.257) height=+0.204 m  out
+  PlastikZone    <- cube 3: uv=(+0.089, -0.573) height=+0.154 m  out
