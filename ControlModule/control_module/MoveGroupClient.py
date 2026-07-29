@@ -3,7 +3,7 @@ from typing import Optional
 from geometry_msgs.msg import Pose, PoseStamped, Vector3
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import (
-    Constraints, OrientationConstraint, PositionConstraint,
+    Constraints, JointConstraint, OrientationConstraint, PositionConstraint,
     BoundingVolume, MotionPlanRequest, PlanningOptions, WorkspaceParameters,
 )
 from rclpy.node import Node
@@ -141,6 +141,75 @@ class MoveGroupClient:
         self.node.get_logger().error(
             f"'{label}' failed: {describe_error(code)} (code {code})")
         return False
+
+    def _joint_constraints(self, joint_positions: list[float]) -> Constraints:
+        c = Constraints()
+        c.name = "joint_goal"
+        for i, val in enumerate(joint_positions):
+            jc = JointConstraint()
+            jc.joint_name = f"joint_{i+1}"
+            jc.position = float(val)
+            jc.tolerance_above = 0.01
+            jc.tolerance_below = 0.01
+            jc.weight = 1.0
+            c.joint_constraints.append(jc)
+        return c
+
+    def _joint_goal(self, joint_positions: list[float], plan_only: bool,
+                    velocity_scaling: Optional[float] = None) -> MoveGroup.Goal:
+        req = MotionPlanRequest()
+        req.group_name = self.group
+        req.goal_constraints = [self._joint_constraints(joint_positions)]
+        req.num_planning_attempts = self.planning_attempts
+        req.allowed_planning_time = self.planning_time
+        scale = velocity_scaling if velocity_scaling is not None else self.vel_scale
+        req.max_velocity_scaling_factor = scale
+        req.max_acceleration_scaling_factor = scale
+        if self.pipeline_id:
+            req.pipeline_id = self.pipeline_id
+        if self.planner_id:
+            req.planner_id = self.planner_id
+
+        ws = WorkspaceParameters()
+        ws.header.frame_id = self.ref_frame
+        ws.min_corner = Vector3(x=-1.5, y=-1.5, z=-1.5)
+        ws.max_corner = Vector3(x=1.5, y=1.5, z=1.5)
+        req.workspace_parameters = ws
+
+        opts = PlanningOptions()
+        opts.plan_only = plan_only
+        opts.planning_scene_diff.is_diff = True
+        opts.planning_scene_diff.robot_state.is_diff = True
+
+        goal = MoveGroup.Goal()
+        goal.request = req
+        goal.planning_options = opts
+        return goal
+
+    def go_joint(self, joint_positions: list[float], plan_only: bool = True,
+                 label: str = "joint_goal", velocity_scaling: Optional[float] = None,
+                 timeout_sec: float = 60.0) -> bool:
+        """Plan to a joint configuration, and execute it unless plan_only."""
+        self.node.get_logger().info(
+            f"{'planning' if plan_only else 'executing'} joint '{label}' -> "
+            f"[{', '.join(f'{v:+.3f}' for v in joint_positions)}]")
+
+        result = self.action.send(self._joint_goal(joint_positions, plan_only, velocity_scaling),
+                                  timeout_sec=timeout_sec)
+        if result is None:
+            return False
+
+        code = result.error_code.val
+        if code == 1:
+            n = len(result.planned_trajectory.joint_trajectory.points)
+            self.node.get_logger().info(
+                f"'{label}' ok, {n} trajectory points")
+            return True
+
+        self.node.get_logger().error(
+            f"'{label}' failed: {describe_error(code)} (code {code})")
+        return False
+
 
 def describe_error(code: int) -> str:
     """MoveItErrorCodes values worth recognising on sight."""
