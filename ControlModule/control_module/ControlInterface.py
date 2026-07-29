@@ -27,7 +27,7 @@ class MotionActions(BaseModel):
 
     move_group: ActionSpec = ActionSpec(
         name="/move_action",
-        msg_type="move_it_msgs/action/MoveGroup",
+        msg_type="moveit_msgs/action/MoveGroup",
     )
 
 

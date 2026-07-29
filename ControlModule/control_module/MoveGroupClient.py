@@ -139,28 +139,28 @@ class MoveGroupClient:
             return True
  
         self.node.get_logger().error(
-            f"'{label}' failed: {code} (code {code})")
+            f"'{label}' failed: {describe_error(code)} (code {code})")
         return False
 
-    def describe_error(code: int) -> str:
-        """MoveItErrorCodes values worth recognising on sight."""
-        return {
-            1: "SUCCESS",
-            -1: "FAILURE",
-            -2: "PLANNING_FAILED",
-            -3: "INVALID_MOTION_PLAN",
-            -4: "MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE",
-            -5: "CONTROL_FAILED",
-            -6: "UNABLE_TO_AQUIRE_SENSOR_DATA",
-            -7: "TIMED_OUT",
-            -8: "PREEMPTED",
-            -10: "START_STATE_IN_COLLISION",
-            -11: "START_STATE_VIOLATES_PATH_CONSTRAINTS",
-            -12: "GOAL_IN_COLLISION",
-            -13: "GOAL_VIOLATES_PATH_CONSTRAINTS",
-            -14: "GOAL_CONSTRAINTS_VIOLATED",
-            -15: "INVALID_GROUP_NAME",
-            -17: "INVALID_LINK_NAME",
-            -19: "NO_IK_SOLUTION",
-            -31: "UNABLE_TO_AQUIRE_SENSOR_DATA",
-        }.get(code, "unknown")
+def describe_error(code: int) -> str:
+    """MoveItErrorCodes values worth recognising on sight."""
+    return {
+        1: "SUCCESS",
+        -1: "FAILURE",
+        -2: "PLANNING_FAILED",
+        -3: "INVALID_MOTION_PLAN",
+        -4: "MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE",
+        -5: "CONTROL_FAILED",
+        -6: "UNABLE_TO_AQUIRE_SENSOR_DATA",
+        -7: "TIMED_OUT",
+        -8: "PREEMPTED",
+        -10: "START_STATE_IN_COLLISION",
+        -11: "START_STATE_VIOLATES_PATH_CONSTRAINTS",
+        -12: "GOAL_IN_COLLISION",
+        -13: "GOAL_VIOLATES_PATH_CONSTRAINTS",
+        -14: "GOAL_CONSTRAINTS_VIOLATED",
+        -15: "INVALID_GROUP_NAME",
+        -17: "INVALID_LINK_NAME",
+        -19: "NO_IK_SOLUTION",
+        -31: "UNABLE_TO_AQUIRE_SENSOR_DATA",
+    }.get(code, "unknown")
