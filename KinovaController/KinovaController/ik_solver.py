@@ -56,11 +56,23 @@ class KinovaIKSolver:
             # Collision Handler mit aktuellem Modell initialisieren
             self.collision_handler.set_models(self.model)
 
-            # End-Effektor Frame suchen oder Fallback auf den letzten Frame
-            if self.model.existFrame(end_effector_frame):
-                self.ee_frame_id = self.model.getFrameId(end_effector_frame)
-            else:
+            # End-Effektor Frame suchen oder Fallback auf bekannte Frames
+            target_frame_names = [end_effector_frame, "end_effector_link", "tool_frame", "dummy_tcp", "gripper_base_link"]
+            found_frame = None
+            for fname in target_frame_names:
+                if fname and self.model.existFrame(fname):
+                    self.ee_frame_id = self.model.getFrameId(fname)
+                    found_frame = fname
+                    break
+
+            if found_frame is None:
                 self.ee_frame_id = self.model.nframes - 1
+                found_frame = self.model.frames[self.ee_frame_id].name
+
+            print(
+                f"[KinovaIKSolver] URDF geladen. Gelenke (nq={self.model.nq}), "
+                f"End-Effektor Frame ID: {self.ee_frame_id} ('{found_frame}')"
+            )
 
             return True
         except Exception as e:
@@ -96,15 +108,30 @@ class KinovaIKSolver:
         y: float,
         z: float,
         q_init: list[float] = None,
-        max_iter: int = 100,
-        eps: float = 1e-4,
-        damp: float = 1e-6,
+        max_iter: int = 500,
+        eps: float = 1e-3,
+        damp: float = 1e-5,
     ) -> list[float] | None:
         """
         Berechnet 6 Gelenkwinkel für eine 3D-Zielposition (x, y, z) in Metern.
+        Stellt sicher, dass Punkte außerhalb des erreichbaren Radius auf den maximalen
+        Arbeitsradius skaliert werden (inspiriert von ControlModule.TagApproachNode).
         """
         if not self.is_available or self.model is None:
             return None
+
+        # Max. sichere Reichweite (0.85m) - analog zu WorkspaceParameters in ControlModule
+        dist = math.sqrt(x*x + y*y + z*z)
+        MAX_SAFE_REACH_M = 0.85
+
+        if dist > MAX_SAFE_REACH_M:
+            scale = MAX_SAFE_REACH_M / dist
+            print(
+                f"[KinovaIKSolver] Ziel ({x:+.3f}, {y:+.3f}, {z:+.3f}) m ist {dist:.3f}m entfernt "
+                f"→ Skaliere Vektor auf max. Reichweite {MAX_SAFE_REACH_M:.2f}m: "
+                f"({x*scale:+.3f}, {y*scale:+.3f}, {z*scale:+.3f}) m"
+            )
+            x, y, z = x * scale, y * scale, z * scale
 
         target_pos = np.array([x, y, z])
         return self.solve_se3(target_pos, target_rot=None, q_init=q_init, max_iter=max_iter, eps=eps, damp=damp)
@@ -114,55 +141,74 @@ class KinovaIKSolver:
         target_pos: np.ndarray,
         target_rot: np.ndarray = None,
         q_init: list[float] = None,
-        max_iter: int = 100,
+        max_iter: int = 500,
         eps: float = 1e-4,
         damp: float = 1e-6,
     ) -> list[float] | None:
         """
-        Levenberg-Marquardt Inverse Kinematics für SE3 (Position + Orientierung).
+        Levenberg-Marquardt Inverse Kinematics für SE3 (Position + Orientierung) mit Multi-Seed Fallback.
         """
         if not self.is_available or self.model is None:
             return None
 
-        q = pin.neutral(self.model)
+        # Liste von Startkonfigurationen für Multi-Seed Fallback
+        seeds = []
         if q_init is not None:
             q_arr = np.array(q_init, dtype=np.float64)
-            q[:min(len(q_arr), self.model.nq)] = q_arr[:min(len(q_arr), self.model.nq)]
+            q_first = pin.neutral(self.model)
+            q_first[:min(len(q_arr), self.model.nq)] = q_arr[:min(len(q_arr), self.model.nq)]
+            seeds.append(q_first)
 
-        for i in range(max_iter):
-            pin.forwardKinematics(self.model, self.data, q)
-            pin.updateFramePlacements(self.model, self.data)
+        # Hinzufügen von neutralen und ausgestreckten Fallback-Startwerten
+        seeds.append(pin.neutral(self.model))
+        
+        # Hinzufügen einer leicht gestreckten Startkonfiguration
+        q_stretched = pin.neutral(self.model)
+        if len(q_stretched) >= 6:
+            q_stretched[1] = 0.5   # Gelenk 2 leicht anwinkeln
+            q_stretched[2] = 1.0   # Gelenk 3 nach vorne strecken
+        seeds.append(q_stretched)
 
-            current_pos = self.data.oMf[self.ee_frame_id].translation
-            err_pos = target_pos - current_pos
+        for seed in seeds:
+            q = seed.copy()
+            for i in range(max_iter):
+                pin.forwardKinematics(self.model, self.data, q)
+                pin.updateFramePlacements(self.model, self.data)
 
-            if target_rot is not None:
-                current_rot = self.data.oMf[self.ee_frame_id].rotation
-                err_rot = pin.log3(current_rot.T @ target_rot)
-                err = np.hstack([err_pos, err_rot])
-            else:
-                err = err_pos
+                current_pos = self.data.oMf[self.ee_frame_id].translation
+                err_pos = target_pos - current_pos
 
-            if np.linalg.norm(err) < eps:
-                joint_angles = q[:6].tolist()
-                is_valid, reason = self.collision_handler.is_configuration_valid(joint_angles)
-                if not is_valid:
-                    print(f"[KinovaIKSolver] IK-Lösung verworfen wegen Kollision: {reason}")
-                    return None
-                return joint_angles
+                if target_rot is not None:
+                    current_rot = self.data.oMf[self.ee_frame_id].rotation
+                    err_rot = pin.log3(current_rot.T @ target_rot)
+                    err = np.hstack([err_pos, err_rot])
+                else:
+                    err = err_pos
 
-            # Jacobian berechnen
-            J = pin.computeFrameJacobian(
-                self.model, self.data, q, self.ee_frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
-            )
-            if target_rot is None and J.ndim == 2:
-                J = J[:3, :]  # Nur Positionskomponenten
+                if np.linalg.norm(err) < eps:
+                    joint_angles = q[:6].tolist()
+                    is_valid, reason = self.collision_handler.is_configuration_valid(joint_angles)
+                    if not is_valid:
+                        print(f"[KinovaIKSolver] IK-Lösung verworfen wegen Kollision: {reason}")
+                        break  # Nächsten Seed versuchen
+                    return joint_angles
 
-            # Damped Pseudo-Inverse (Levenberg-Marquardt Schritt)
-            JJt = J @ J.T + damp * np.eye(J.shape[0])
-            dq = J.T @ np.linalg.solve(JJt, err)
+                # Jacobian berechnen
+                J = pin.computeFrameJacobian(
+                    self.model, self.data, q, self.ee_frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+                )
+                if target_rot is None and J.ndim == 2:
+                    J = J[:3, :]  # Nur Positionskomponenten
 
-            q = pin.integrate(self.model, q, dq)
+                # Wichtig: Nur die 6 Arm-Gelenke bewegen (Greifer-Gelenke sperren)
+                if J.shape[1] > 6:
+                    J[:, 6:] = 0.0
+
+                # Damped Pseudo-Inverse (Levenberg-Marquardt Schritt)
+                JJt = J @ J.T + damp * np.eye(J.shape[0])
+                dq = J.T @ np.linalg.solve(JJt, err)
+
+                q = pin.integrate(self.model, q, dq)
 
         print("[KinovaIKSolver] IK Konvergenz nicht innerhalb max_iter erreicht.")
         return None
@@ -256,12 +302,16 @@ class IKMovement:
             return False
 
         x_base, y_base, z_base = float(tag_pos[0]), float(tag_pos[1]), float(tag_pos[2])
+        # Bei Deckenmontage (+Z nach unten): Ein Offset "über dem Tag" bedeutet näher zur Decke (- offset_z)
+        # Ist offset_z positiv übergeben, ziehen wir ihn ab, um sich dem Roboterfuß anzunähern statt tiefer zu steuern.
+        z_target = z_base - abs(offset_z) if z_base > 0 and offset_z > 0 else z_base + offset_z
+
         self.get_logger().info(
             f'[IK-Anfahrt] AprilTag {tag_id} im Base-Frame: x={x_base:+.3f}m, y={y_base:+.3f}m, z={z_base:+.3f}m '
-            f'→ Berechne IK (Ziel Z: {z_base + offset_z:+.3f}m, Dauer: {duration}s)...'
+            f'→ Berechne IK (Ziel Z: {z_target:+.3f}m, Dauer: {duration}s)...'
         )
 
-        return self.move_to_cartesian_position(x_base, y_base, z_base + offset_z, duration=duration)
+        return self.move_to_cartesian_position(x_base, y_base, z_target, duration=duration)
 
     # Alias für Abwärtskompatibilität
     move_to_tag_ik = move_to_arm_camera_tag_ik
@@ -271,6 +321,3 @@ class IKMovement:
         Bewegt den Arm per Pinocchio IK direkt zu einem Tag aus dem WorldSpaceNode (/vision/tags).
         """
         return self.move_to_arm_camera_tag_ik(tag_id=tag_id, duration=duration, offset_z=offset_z)
-
-
-

@@ -14,6 +14,32 @@ sudo apt install ros-$ROS_DISTRO-pinocchio
 ### ROS2
 
 ```
+
+# old home position
+ros2 topic pub --once /joint_trajectory_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{
+  joint_names: ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6'],
+  points: [
+    {
+      positions: [-0.35875, -1.61249, -0.62015, -0.03378, -0.91811, 0.00466],
+      velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      time_from_start: {sec: 5, nanosec: 0}
+    }
+  ]
+}"
+
+# new home position
+ros2 topic pub --once /joint_trajectory_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{
+  joint_names: ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6'],
+  points: [
+    {
+      positions: [-0.3442678993789787, -1.788839445251826, -0.05060219124037779, 0.033443887503647206, -1.9649835829107563, 0.00582217572740141],
+      velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      time_from_start: {sec: 5, nanosec: 0}
+    }
+  ]
+}"
+
+
 ros2 interface show trajectory_msgs/msg/JointTrajectory
 ros2 topic info /joint_trajectory_controller/joint_trajectory --verbose
 
