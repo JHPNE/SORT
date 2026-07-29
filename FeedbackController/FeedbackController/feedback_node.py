@@ -10,6 +10,7 @@ from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
 
 from abc import ABC, abstractmethod
 from FeedBackDecisionHandler import SortState, FeedBackDecisionHandler
+from vision_module.Zone import ZONES
 from vision_module.WorldClient import TagWorld
 
 # How often the tag world is judged, in seconds.
