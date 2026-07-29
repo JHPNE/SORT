@@ -21,6 +21,7 @@ setup(
         'console_scripts': [
             'motion_test = control_module.MotionTestNode:main',
             'tag_approach = control_module.TagApproachNode:main',
+            'gesture_node = control_module.GestureNode:main',
         ],
     },
 )
