@@ -22,6 +22,7 @@ setup(
             'motion_test = control_module.MotionTestNode:main',
             'tag_approach = control_module.TagApproachNode:main',
             'gesture_node = control_module.GestureNode:main',
+            'gesture_client = control_module.GestureClient:main',
         ],
     },
 )
