@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypemirror="urn:oasis:names:tc:entity:xmlns:xml:catalog"?>
+<package format="3">
+  <name>control_module</name>
+  <version>0.0.1</version>
+  <description>control_module</description>
+  <maintainer email="asd@googlemail.com">Sort</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>moveit_msgs</depend>
+  <depend>shape_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>control_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>python3-pydantic</depend>
+  <depend>vision_module</depend>
+  <depend>python3-numpy</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
