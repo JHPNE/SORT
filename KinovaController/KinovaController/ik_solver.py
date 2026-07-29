@@ -179,7 +179,7 @@ class IKMovement:
         x: float,
         y: float,
         z: float,
-        duration: int = 5,
+        duration: int = 20,
         q_init: list[float] | None = None
     ) -> bool:
         """
@@ -206,7 +206,7 @@ class IKMovement:
         self.move_arm_to(joint_angles, duration=duration)
         return True
 
-    def move_to_arm_camera_tag_ik(self, duration: int = 5, offset_z: float = 0.15) -> bool:
+    def move_to_arm_camera_tag_ik(self, duration: int = 30, offset_z: float = 0.25) -> bool:
         """
         [ARM-KAMERA / EYE-IN-HAND]
         Wartet auf die 3D-Position eines AprilTags der Arm-Kamera und bewegt den End-Effektor per Pinocchio IK dorthin.

@@ -69,7 +69,8 @@ class PinocchioCollisionHandler:
         # Dynamische Hindernisse aus dem Kamera-Feed (Weg 2)
         self.dynamic_obstacles: dict[str, dict] = {}
 
-        self.enabled = _PINOCCHIO_AVAILABLE and (model is not None)
+        # Master-Schalter: Setze auf False zum kompletten Deaktivieren der Kollisionsprüfung
+        self.enabled = False
         if self.enabled:
             self._init_collision_models()
 
@@ -96,7 +97,8 @@ class PinocchioCollisionHandler:
         """Setzt oder aktualisiert die Pinocchio Kinematik- und Geometriemodelle."""
         self.model = model
         self.geom_model = geom_model
-        self.enabled = _PINOCCHIO_AVAILABLE and (model is not None)
+        if self.enabled:
+            self.enabled = _PINOCCHIO_AVAILABLE and (model is not None)
         if self.enabled:
             self._init_collision_models()
 

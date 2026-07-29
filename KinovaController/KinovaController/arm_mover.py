@@ -39,6 +39,13 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
 
         self.topics = TopicList()
 
+        # Publishers
+        self._publisher = self.create_publisher(
+            JointTrajectory,
+            self.topics.arm.joint_trajectory.name,
+            10
+        )
+
         # Initialize internal visual tracker and gripper states
         self._init_visual_tracker()
         self._init_gripper()
@@ -79,13 +86,6 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
             String,
             self.topics.arm.gesture.name,
             self._gesture_callback,
-            10
-        )
-
-        # Publishers
-        self._publisher = self.create_publisher(
-            JointTrajectory,
-            self.topics.arm.joint_trajectory.name,
             10
         )
 
@@ -151,7 +151,7 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
     def goto_arm_camera_tag(self):
         """Bewegt den Arm per IK zum AprilTag (Einzelkamera am Arm)."""
         self.get_logger().info('Führe IK-Anfahrt zum AprilTag der Arm-Kamera aus...')
-        self.move_to_arm_camera_tag_ik(duration=5, offset_z=0.15)
+        self.move_to_arm_camera_tag_ik(duration=20, offset_z=0.25)
 
     goto_tag = goto_arm_camera_tag
 
