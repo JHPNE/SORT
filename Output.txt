@@ -1,0 +1,26 @@
+PapierZone     <- cube 3: local=(+0.182, +0.061, -0.211)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+  RestmuellZone  <- cube 3: local=(-0.055, +0.046, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+[INFO] [1785338560.720416912] [tag_reader]: world 'base_link': 3 tag(s)
+  tag   0 PapierZone     xyz=(-0.372, -0.093, +1.324) m  dist=1.378 m  [pnp_avg, 2cam]
+  tag   1 RestmuellZone  xyz=(-0.306, -0.328, +1.323) m  dist=1.397 m  [pnp_avg, 2cam]
+  tag   3 Papier         xyz=(-0.360, -0.286, +1.535) m  dist=1.602 m  [pnp_avg, 2cam]
+  --- zones ---
+  PapierZone     [tag 0]: -
+  RestmuellZone  [tag 1]: -
+  PlastikZone    [tag 2]: -  (zone tag NOT visible)
+  unassigned    : 3
+  --- local coords (cube in zone frame) ---
+  PapierZone     <- cube 3: local=(+0.182, +0.062, -0.213)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+  RestmuellZone  <- cube 3: local=(-0.053, +0.048, -0.211)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+[INFO] [1785338561.220234585] [tag_reader]: world 'base_link': 3 tag(s)
+  tag   0 PapierZone     xyz=(-0.373, -0.093, +1.322) m  dist=1.377 m  [pnp_avg, 2cam]
+  tag   1 RestmuellZone  xyz=(-0.307, -0.328, +1.321) m  dist=1.395 m  [pnp_avg, 2cam]
+  tag   3 Papier         xyz=(-0.360, -0.285, +1.532) m  dist=1.599 m  [pnp_avg, 2cam]
+  --- zones ---
+  PapierZone     [tag 0]: -
+  RestmuellZone  [tag 1]: -
+  PlastikZone    [tag 2]: -  (zone tag NOT visible)
+  unassigned    : 3
+  --- local coords (cube in zone frame) ---
+  PapierZone     <- cube 3: local=(+0.182, +0.061, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
+  RestmuellZone  <- cube 3: local=(-0.058, +0.044, -0.210)  bounds x[-0.025,+0.165] y[-0.251,-0.035]  out
