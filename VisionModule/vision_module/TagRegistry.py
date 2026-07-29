@@ -1,29 +1,52 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
  
 DEFAULT_TAG_SIZE_M = 0.05
+CORNER_TAG_SIZE_M = 0.045
  
- 
+
 @dataclass(frozen=True)
 class TagInfo:
     tag_id: int
     name: str
-    category: str                    # "zone" | "trash" | "human"
+    category: str                    # "zone_corner" | "trash" | "human"
     size_m: float = DEFAULT_TAG_SIZE_M
-    sorts_to: Optional[int] = None   # trash only: tag_id of its target zone
+    sorts_to: Optional[int] = None   # trash only: logical zone id
+    zone_id: Optional[int] = None    # zone_corner only: which zone it bounds
+
+ZONE_PAPIER = 0
+ZONE_RESTMUELL = 1
+ZONE_PLASTIK = 2
  
+ZONE_NAMES: Dict[int, str] = {
+    ZONE_PAPIER: "PapierZone",
+    ZONE_RESTMUELL: "RestmuellZone",
+    ZONE_PLASTIK: "PlastikZone",
+}
+ 
+# Corner tag ids per zone. Order here is irrelevant - ZoneMap sorts corners
+# geometrically, so any tag may go in any corner of its own sheet.
+ZONE_CORNERS: Dict[int, Tuple[int, ...]] = {
+    ZONE_PAPIER:    (100, 101, 102, 103),
+    ZONE_PLASTIK:   (104, 105, 106, 107),
+    ZONE_RESTMUELL: (108, 109, 110, 111),
+} 
+
+def _corner_tags() -> Dict[int, TagInfo]:
+    out: Dict[int, TagInfo] = {}
+    for zone_id, ids in ZONE_CORNERS.items():
+        for n, tid in enumerate(ids):
+            out[tid] = TagInfo(
+                tid, f"{ZONE_NAMES[zone_id]}_c{n}", "zone_corner",
+                size_m=CORNER_TAG_SIZE_M, zone_id=zone_id)
+    return out
  
 TAGS: Dict[int, TagInfo] = {
     # Zones (A4 sheets)
     0: TagInfo(0, "PapierZone",   "zone"),
     1: TagInfo(1, "RestmuellZone", "zone"),
     2: TagInfo(2, "PlastikZone",  "zone"),
-    # Trash cubes
-    3: TagInfo(3, "Papier",   "trash", sorts_to=0),
-    4: TagInfo(4, "Plastik",  "trash", sorts_to=2),
-    5: TagInfo(5, "Organic",  "trash", sorts_to=1),
-    6: TagInfo(6, "Unknown",  "trash", sorts_to=1),
-    # Human marker (e.g. wristband) - motion node should treat as keep-out
+
     67: TagInfo(67, "Human", "human"),
 }
  
@@ -46,4 +69,16 @@ def target_zone(trash_tag_id: int) -> Optional[int]:
     """Where does this piece of trash belong? None if unknown tag."""
     t = TAGS.get(trash_tag_id)
     return t.sorts_to if t else None
+
  
+def corners_of(zone_id: int) -> Tuple[int, ...]:
+    return ZONE_CORNERS.get(zone_id, ())
+ 
+ 
+def zone_of_corner(tag_id: int) -> Optional[int]:
+    t = TAGS.get(tag_id)
+    return t.zone_id if t else None
+ 
+ 
+def zone_name(zone_id: int) -> str:
+    return ZONE_NAMES.get(zone_id, f"Zone{zone_id}") 
