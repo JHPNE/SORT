@@ -69,13 +69,6 @@ class KinovaMover(Node, TrajectoryExecutor, IKMovement, VisualTracker, ArmGestur
         )
 
         self.create_subscription(
-            PoseStamped,
-            self.topics.arm.apriltag_pose.name,
-            self._tag_callback,
-            10
-        )
-
-        self.create_subscription(
             String,
             '/vision/tags',
             self._worldspace_tags_callback,

@@ -34,6 +34,13 @@ class VisualTracker:
         self._current_oriented_position: list[float] = list(NOD_POSITION)
         self._tag_event = threading.Event()
         self._last_log_time: float = 0.0
+        self._worldspace_tag_poses: dict[int, tuple[float, float, float]] = {}
+
+        try:
+            from vision_module.WorldClient import TagWorld
+            self.tag_world = TagWorld(self, topic="/vision/tags", max_age_s=2.0)
+        except Exception:
+            self.tag_world = None
 
     def _tag_callback(self, msg: PoseStamped) -> None:
         """
@@ -79,27 +86,28 @@ class VisualTracker:
         """
         Empfängt das aggregierte WorldSpace-Paket von WorldSpaceNode (/vision/tags).
         Trägt alle im Raum erkannten Tags direkt in den Pinocchio Collision Handler ein
-        und speichert ihre WorldSpace-Koordinaten für IK-Anfahrten.
+        und speichert ihre WorldSpace-Koordinaten (base_link) für IK-Anfahrten.
         """
         if not hasattr(self, '_worldspace_tag_poses'):
             self._worldspace_tag_poses = {}
 
         try:
             from vision_module import TagMessage
-            packet = TagMessage.decode(msg.data)
-            observations = TagMessage.to_observations(packet)
-            for obs in observations:
-                x, y, z = obs.pos
-                self._worldspace_tag_poses[obs.id] = (float(x), float(y), float(z))
+            packet = TagMessage.decode_fused(msg.data)
+            for t in packet.tags:
+                tag_id = int(t["id"])
+                pos = t["t"]
+                self._worldspace_tag_poses[tag_id] = (float(pos[0]), float(pos[1]), float(pos[2]))
 
                 if hasattr(self, 'ik_solver') and self.ik_solver.is_available and self.ik_solver.model:
                     self.ik_solver.collision_handler.update_dynamic_obstacle(
-                        f"world_tag_{obs.id}",
-                        float(x),
-                        float(y),
-                        float(z),
+                        f"world_tag_{tag_id}",
+                        float(pos[0]),
+                        float(pos[1]),
+                        float(pos[2]),
                         radius=0.20
                     )
+            self._tag_event.set()
         except Exception:
             pass
 
