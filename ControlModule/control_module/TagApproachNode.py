@@ -10,7 +10,7 @@ from geometry_msgs.msg import PoseStamped
 from tf2_ros import Buffer, TransformListener
  
 from control_module.MoveGroupClient import MoveGroupClient
-from VisionModule.vision_module.WorldClient import TagWorld
+from vision_module.WorldClient import TagWorld
 
 class TagApproachNode(Node):
     def __init__(self):
@@ -18,10 +18,6 @@ class TagApproachNode(Node):
  
         self.declare_parameter("tag_id", 3)
         self.declare_parameter("step_m", 0.05)
-        # Hard floor on how close the tool origin may get to the tag centre.
-        # end_effector_link is at the wrist flange, so the fingers stick out
-        # well past it - keep this comfortably larger than the gripper length
-        # until you have measured the real offset.
         self.declare_parameter("min_standoff_m", 0.25)
         self.declare_parameter("min_z_m", 0.05)       # never plan below this
         self.declare_parameter("execute", False)

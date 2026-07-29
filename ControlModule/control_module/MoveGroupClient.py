@@ -145,8 +145,10 @@ class MoveGroupClient:
 def describe_error(code: int) -> str:
     """MoveItErrorCodes values worth recognising on sight."""
     return {
-        1: "SUCCESS",
-        -1: "FAILURE",
+        99999: "FAILURE", 
+        -1: "PLANNING_FAILED", 
+        -31: "NO_IK_SOLUTION", 
+        -18: "INVALID_LINK_NAME",
         -2: "PLANNING_FAILED",
         -3: "INVALID_MOTION_PLAN",
         -4: "MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE",
@@ -162,5 +164,4 @@ def describe_error(code: int) -> str:
         -15: "INVALID_GROUP_NAME",
         -17: "INVALID_LINK_NAME",
         -19: "NO_IK_SOLUTION",
-        -31: "UNABLE_TO_AQUIRE_SENSOR_DATA",
     }.get(code, "unknown")
