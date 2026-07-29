@@ -34,7 +34,7 @@ class ArmTopics(BaseModel):
 
 class FeedbackTopics(BaseModel):
     ha_lights: TopicSpec = TopicSpec(
-        name="/feedback/ha_lights", msg_type="std_msgs/msg/String"
+        name="/homeassistant/request", msg_type="std_msgs/msg/String"
     )
     audio_tts: TopicSpec = TopicSpec(
         name="/tts/generate", msg_type="std_msgs/msg/String"
@@ -43,7 +43,14 @@ class FeedbackTopics(BaseModel):
         name="/tts/set_voice", msg_type="std_msgs/msg/String"
     )
 
+class SortingTopics(BaseModel):
+    # Published by the vision pipeline. Expected data: "correct" | "incorrect" | "uncertain"
+    result: TopicSpec = TopicSpec(
+        name="/sorting/result", msg_type="std_msgs/msg/String"
+    )
+
 class TopicList(BaseModel):
     camera: CameraTopics = CameraTopics()
     arm: ArmTopics = ArmTopics()
     feedback: FeedbackTopics = FeedbackTopics()
+    sorting: SortingTopics = SortingTopics()
