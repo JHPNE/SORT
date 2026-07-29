@@ -155,14 +155,16 @@ class MoveGroupClient:
             c.joint_constraints.append(jc)
         return c
 
-    def _joint_goal(self, joint_positions: list[float], plan_only: bool) -> MoveGroup.Goal:
+    def _joint_goal(self, joint_positions: list[float], plan_only: bool,
+                    velocity_scaling: Optional[float] = None) -> MoveGroup.Goal:
         req = MotionPlanRequest()
         req.group_name = self.group
         req.goal_constraints = [self._joint_constraints(joint_positions)]
         req.num_planning_attempts = self.planning_attempts
         req.allowed_planning_time = self.planning_time
-        req.max_velocity_scaling_factor = self.vel_scale
-        req.max_acceleration_scaling_factor = self.acc_scale
+        scale = velocity_scaling if velocity_scaling is not None else self.vel_scale
+        req.max_velocity_scaling_factor = scale
+        req.max_acceleration_scaling_factor = scale
         if self.pipeline_id:
             req.pipeline_id = self.pipeline_id
         if self.planner_id:
@@ -185,13 +187,14 @@ class MoveGroupClient:
         return goal
 
     def go_joint(self, joint_positions: list[float], plan_only: bool = True,
-                 label: str = "joint_goal", timeout_sec: float = 60.0) -> bool:
+                 label: str = "joint_goal", velocity_scaling: Optional[float] = None,
+                 timeout_sec: float = 60.0) -> bool:
         """Plan to a joint configuration, and execute it unless plan_only."""
         self.node.get_logger().info(
             f"{'planning' if plan_only else 'executing'} joint '{label}' -> "
             f"[{', '.join(f'{v:+.3f}' for v in joint_positions)}]")
 
-        result = self.action.send(self._joint_goal(joint_positions, plan_only),
+        result = self.action.send(self._joint_goal(joint_positions, plan_only, velocity_scaling),
                                   timeout_sec=timeout_sec)
         if result is None:
             return False

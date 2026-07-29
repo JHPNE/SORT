@@ -1,7 +1,28 @@
 """ROS 2 Node to execute arm gestures using MoveIt (ControlModule).
 
-Listens on /arm/gesture topic (std_msgs/String) or executes a gesture specified via parameter:
-  ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
+=============================================================================
+USAGE EXAMPLES:
+=============================================================================
+
+1. DIRECT CLI EXECUTION VIA PARAMETER (SINGLE GESTURE):
+   # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
+   ros2 run control_module gesture_node --ros-args -p gesture:=nod
+
+   # B) Execute actual physical motion on arm (nod, shake, search, home):
+   ros2 run control_module gesture_node --ros-args -p gesture:=home -p execute:=true
+   ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
+   ros2 run control_module gesture_node --ros-args -p gesture:=shake -p execute:=true -p velocity_scaling:=0.50
+
+2. CONTROL DISPATCHER NODE VIA ROS 2 TOPIC:
+   # Terminal 1: Launch GestureNode in execution mode in the background:
+   ros2 run control_module gesture_node --ros-args -p execute:=true
+
+   # Terminal 2: Publish commands over topic:
+   ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'nod'"
+   ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'shake'"
+   ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'search'"
+   ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
+=============================================================================
 """
 
 import threading
@@ -22,21 +43,22 @@ class GestureNode(Node):
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("tool_link", "end_effector_link")
         self.declare_parameter("reference_frame", "base_link")
-        self.declare_parameter("velocity_scaling", 0.10)
+        self.declare_parameter("velocity_scaling", 0.40)
         self.declare_parameter("gesture", "")            # nod, shake, search, home
         self.declare_parameter("execute", False)         # False = dry run plan only
 
         p = self.get_parameter
         self.gesture_param = str(p("gesture").value).strip().lower()
         self.execute = bool(p("execute").value)
+        self.vel_scale = float(p("velocity_scaling").value)
 
         self.move = MoveGroupClient(
             self,
             group_name=p("planning_group").value,
             tool_link=p("tool_link").value,
             reference_frame=p("reference_frame").value,
-            velocity_scaling=float(p("velocity_scaling").value),
-            acceleration_scaling=float(p("velocity_scaling").value)
+            velocity_scaling=self.vel_scale,
+            acceleration_scaling=self.vel_scale
         )
 
         self.gestures = ArmGestures(self.move)
@@ -54,7 +76,7 @@ class GestureNode(Node):
         self.get_logger().info(f"Received gesture request: '{name}'")
         thread = threading.Thread(
             target=self.gestures.execute_gesture,
-            kwargs={"name": name, "plan_only": not self.execute},
+            kwargs={"name": name, "plan_only": not self.execute, "velocity_scaling": self.vel_scale},
             daemon=True
         )
         thread.start()
@@ -67,9 +89,9 @@ class GestureNode(Node):
         if self.gesture_param:
             self.get_logger().info(
                 f"Executing parameter gesture '{self.gesture_param}' "
-                f"({'EXECUTE' if self.execute else 'plan only'})...")
+                f"({'EXECUTE' if self.execute else 'plan only'}) at speed {self.vel_scale:.2f}...")
             self.gestures.execute_gesture(
-                self.gesture_param, plan_only=not self.execute)
+                self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
 
 
 def main(args=None):
