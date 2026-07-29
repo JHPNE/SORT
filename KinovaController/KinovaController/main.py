@@ -11,6 +11,7 @@ def main(args=None):
     node = KinovaMover()
 
     try:
+        time.sleep(1.0)
         node.get_logger().info('Fahre zu HOME_POSITION...')
         node.move_arm_to(HOME_POSITION, 5)
         time.sleep(5.0)

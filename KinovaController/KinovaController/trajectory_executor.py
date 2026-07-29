@@ -24,11 +24,14 @@ class TrajectoryExecutor:
             return
 
         msg = JointTrajectory()
+        if hasattr(self, 'get_clock'):
+            msg.header.stamp = self.get_clock().now().to_msg()
         msg.joint_names = JOINT_NAMES
 
         for positions, t in steps:
             point = JointTrajectoryPoint()
             point.positions = [float(p) for p in positions]
+            point.velocities = [0.0] * len(positions)
             point.time_from_start.sec = int(t)
             point.time_from_start.nanosec = int((t - int(t)) * 1e9)
             msg.points.append(point)

@@ -165,12 +165,7 @@ class KinovaIKSolver:
             q = pin.integrate(self.model, q, dq)
 
         print("[KinovaIKSolver] IK Konvergenz nicht innerhalb max_iter erreicht.")
-        joint_angles = q[:6].tolist()
-        is_valid, reason = self.collision_handler.is_configuration_valid(joint_angles)
-        if not is_valid:
-            print(f"[KinovaIKSolver] IK-Lösung verworfen wegen Kollision: {reason}")
-            return None
-        return joint_angles
+        return None
 
 
 class IKMovement:
