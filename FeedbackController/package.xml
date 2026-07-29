@@ -12,6 +12,7 @@
   <depend>trajectory_msgs</depend>
   <depend>topic_handler</depend>
   <depend>vision_module</depend>
+  <depend>control_module</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
