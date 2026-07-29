@@ -20,6 +20,7 @@ setup(
             'camera_fusion = vision_module.TagFusionNode:main',
             'tag_detector = vision_module.TagDetectorNode:main',
             'world_space = vision_module.WorldSpaceNode:main',
+            'tag_reader = vision_module.TagReaderNode:main',
             'apriltag_publisher = vision_module.apriltag_publisher:main',
             'synthetic_camera = vision_module.synthetic_camera:main',
         ],
