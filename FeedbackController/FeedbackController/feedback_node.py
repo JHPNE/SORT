@@ -18,21 +18,27 @@ DECISION_PERIOD_S = 1.0
 # Home Assistant light entity used for the visual feedback.
 LIGHT_ENTITY_ID = 'light.robolab'
 
+
 class FeedBackGesture(ABC):
     @abstractmethod
     def handle():
         ...
 
+
 class PositiveFeedBackGesture(FeedBackGesture):
     def handle():
         pass
 
+
 class NegativeFeedBackGesture(FeedBackGesture):
     def handle():
         pass
+
+
 class UnknownFeedBackGesture(FeedBackGesture):
     def handle():
         pass
+
 
 class FeedbackReaction:
     tts_message: str 
@@ -40,9 +46,7 @@ class FeedbackReaction:
     gesture: FeedBackGesture
 
 
-# Speech + light colour for each /sorting/result value published by the vision
-# pipeline. The bridge only accepts the colours green, yellow and red.
-TTS_SORTING_RESULT_FEEDBACK = {
+RESULT_FEEDBACK = {
     SortState.CORRECT: FeedbackReaction('You sorted it correctly. Well done!', 'green', PositiveFeedBackGesture),
     SortState.INCORRECT: FeedbackReaction('You sorted it wrong. You can do better!', 'red', NegativeFeedBackGesture),
     SortState.UNKNOWN: FeedbackReaction('I am uncertain with your sorting. Please double check it.', 'yellow', UnknownFeedBackGesture),
@@ -126,7 +130,7 @@ class FeedbackNode(Node):
 
     def _react_to_result(self, result: SortState):
         """Give the speech and light feedback belonging to one sorting result."""
-        feedback = TTS_SORTING_RESULT_FEEDBACK.get(result)
+        feedback = RESULT_FEEDBACK.get(result)
         if feedback is None:
             self.get_logger().warning(f'Unknown sorting result: "{result}"')
             return
