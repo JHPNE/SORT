@@ -80,42 +80,22 @@ class TagReaderNode(Node):
     def _sort_state(self):
         state = self.zones.sort_state(self.cube_ids)
         out = ["  --- zones ---"]
-        visible_zones = {z.tag_id for z in self.zones.visible_zones()}
+        visible = {z.zone_id for z in self.zones.visible_zones()}
         for zid, zone in self.zones.zones.items():
-            marker = "" if zid in visible_zones else "  (zone tag NOT visible)"
+            marker = "" if zid in visible else "  (fewer than 3 corners visible)"
             cubes = state.get(zone.name, [])
             cube_str = (", ".join(
                 f"{cid}:{TagRegistry.info(cid).name}" for cid in cubes)
                 if cubes else "-")
-            out.append(f"  {zone.name:<14} [tag {zid}]: {cube_str}{marker}")
+            out.append(f"  {zone.name:<14} [zone {zid}]: {cube_str}{marker}")
         if state.get("unassigned"):
-            out.append(f"  unassigned    : "
+            out.append("  unassigned    : "
                        + ", ".join(str(c) for c in state["unassigned"]))
         return out
 
     def _local_coords(self):
-        """Each visible cube expressed in each visible zone's tag frame.
-        This is the calibration view - see module docstring."""
-        out = ["  --- local coords (cube in zone frame) ---"]
-        for zone in self.zones.visible_zones():
-            ref_T_zone = self.world.pose(zone.tag_id)
-            if ref_T_zone is None:
-                continue
-            zone_T_ref = np.linalg.inv(ref_T_zone)
-            for cid in self.cube_ids:
-                cube_pos = self.world.position(cid)
-                if cube_pos is None:
-                    continue
-                local = (zone_T_ref @ np.append(cube_pos, 1.0))[:3]
-                inside = zone.contains_local(local)
-                out.append(
-                    f"  {zone.name:<14} <- cube {cid}: "
-                    f"local=({local[0]:+.3f}, {local[1]:+.3f}, "
-                    f"{local[2]:+.3f})  "
-                    f"bounds x[{zone.x_min:+.3f},{zone.x_max:+.3f}] "
-                    f"y[{zone.y_min:+.3f},{zone.y_max:+.3f}]  "
-                    f"{'IN' if inside else 'out'}")
-        return out
+        """Zone geometry and each cube's position relative to it."""
+        return ["  --- zone geometry ---"] + self.zones.describe(self.cube_ids)
 
 
 def main(args=None):
