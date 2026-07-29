@@ -139,7 +139,7 @@ class MoveGroupClient:
             return True
  
         self.node.get_logger().error(
-            f"'{label}' failed: {describe_error(code)} (code {code})")
+            f"'{label}' failed: {code} (code {code})")
         return False
 
     def describe_error(code: int) -> str:
