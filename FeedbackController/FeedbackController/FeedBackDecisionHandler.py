@@ -1,58 +1,112 @@
-from VisionModule.vision_module.WorldClient import TagWorld
-from VisionModule.vision_module.Zone import ZONES, ZoneMap
-import VisionModule.vision_module.TagRegistry as tr
-
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import Dict, List, Optional
 
+from vision_module.WorldClient import TagWorld
+from vision_module.Zone import ZONES, ZoneMap
+import vision_module.TagRegistry as tr
+
+class SortState(IntEnum):
+    CORRECT = 0 
+    INCORRECT = 1 
+    UNKNOWN = 2 
+
+@dataclass
+class Verdict:
+    state: SortState
+    reason: str
+
+    misplaced: Dict[int, tuple] = field(default_factory=dict)
+    unassigned: List[int] = field(default_factory=list)
+    visible_cubes: List[int] = field(default_factory=list)
+ 
 class FeedbackType(ABC):
     @abstractmethod
-    def handle_feedback(self):
-        pass
+    def message(self, verdict: Verdict) -> int:
+        ...
 
-class FeedBackNegative(FeedbackType):
-    def handle_feedback(self):
-        return ""
-
-class FeedBackPositive(FeedbackType):
-    def handle_feedback(self):
-        return ""
+class FeedbackPositive(FeedbackType):
+    def message(self) -> int:
+        return SortState.CORRECT
+ 
+ 
+class FeedbackNegative(FeedbackType):
+    def message(self, verdict: Verdict) -> str:
+        return SortState.INCORRECT 
+ 
+ 
+class FeedbackSilent(FeedbackType):
+    def message(self) -> str:
+        return SortState.UNKNOWN 
 
 
 class FeedBackDecisionHandler():
-    def __init__(self, world: TagWorld):
+    def __init__(self, world: TagWorld, zones=ZONES, category: str = "trash"):
+
         self.world = world
-        self.feedback_type = self._pick_feedback(world)
-        self.zones = ZoneMap(self.world, ZONES)
-        self.cube_ids = tr.ids_in("trash")
+        self.zones = ZoneMap(world, ZONES)
+        self.cube_ids = tr.ids_in(category)
 
 
-    def _pick_feedback(self, world: TagWorld) -> FeedbackType:
-        if self._has_correct_alignment(world):
-            return FeedBackPositive
+    def evaluate(self) -> Verdict:
+        if not self.world.fresh:
+            return Verdict(SortState.UNKNOWN, "No Fresh Data")
 
-        return FeedBackNegative
+        visible = [c for c in self.cube_ids
+                   if self.world.position(c) is not None]
 
+        if not visible:
+            return Verdict(SortState.UNKNOWN, "no cubes visible")
+ 
+        if not self.zones.visible_zones():
+            return Verdict(SortState.UNKNOWN, "no zone tags visible",
+                           visible_cubes=visible)
 
-    def _has_correct_alignment(self, world: TagWorld) -> bool:
-        zone_state = self.zones.sort_state(self.cube_ids)
+        state = self.zones.sort_state(self.cube_ids)
 
-        for zone_name, cubes in zone_state.items():
+        unassigned = list(state.get("unassigned", []))
+        misplaced: Dict[int, tuple] = {}
+        for zone_name, cubes in state.items():
             if zone_name == "unassigned":
-                if cubes:
-                    return False
                 continue
 
             for cube_id in cubes:
-                expected_zone_id = tr.target_zone(cube_id)
-                if expected_zone_id is None:
-                    return False
+                target_tag = tr.target_zone(cube_id)
 
-                expected_zone = self.zones.zones.get(expected_zone_id)
-                if expected_zone is None or expected_zone.name != zone_name:
-                    return False
+                if target_tag is None:
+                    return Verdict(
+                        SortState.UNKNOWN,
+                        f"cube {cube_id} has no target zone in TagRegistry",
+                        visible_cubes=visible)
 
-        return True
+                target = self.zones.zones.get(target_tag)
+                if target is None:
+                    return Verdict(
+                        SortState.UNKNOWN,
+                        f"target zone tag {target_tag} for cube {cube_id} "
+                        f"is not in ZONES",
+                        visible_cubes=visible)
+                if target.name != zone_name:
+                    misplaced[cube_id] = (zone_name, target.name)
 
-    def get_feedback(self):
-        return self.feedback_type
+        if unassigned:
+            return Verdict(SortState.INCORRECT,
+                           f"{len(unassigned)} cube(s) in no zone",
+                           misplaced, unassigned, visible)
+        if misplaced:
+            return Verdict(SortState.INCORRECT,
+                           f"{len(misplaced)} cube(s) in the wrong zone",
+                           misplaced, unassigned, visible)
+ 
+        return Verdict(SortState.CORRECT,
+                       f"all {len(visible)} visible cube(s) correct",
+                       visible_cubes=visible)
+
+
+    def feedback_for(self, verdict: Verdict) -> FeedbackType:
+        return {
+            SortState.CORRECT: FeedbackPositive(),
+            SortState.INCORRECT: FeedbackNegative(),
+            SortState.UNKNOWN: FeedbackSilent(),
+        }[verdict.state]
