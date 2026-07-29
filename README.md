@@ -17,6 +17,27 @@ ros2 service list
 ros2 action list
 ```
 
+## Connecting to the lab PC
+
+The lab PC runs on domain 0. **Every new terminal** needs this before any `ros2` command,
+otherwise you will not see the lab nodes (`/tts_node`, `/homeassistant_node`, ...) and
+anything you publish silently goes nowhere:
+
+```
+export ROS_DOMAIN_ID=0
+source install/setup.bash
+```
+
+Check it worked - `/tts_node` must appear in the list:
+```
+ros2 node list
+```
+
+To make it permanent, add it to your `~/.bashrc`: maybe leave it and only export domain id
+```
+echo "export ROS_DOMAIN_ID=0" >> ~/.bashrc
+```
+
 ## ROS2 Basics
 ### 1. Creating a package for ros2:
 Note: package names should start with a lower case letter and only contain lower case letters, digits, underscores, and dashes.

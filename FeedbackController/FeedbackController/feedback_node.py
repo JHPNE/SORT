@@ -9,6 +9,20 @@ from topic_handler.TopicList import TopicList
 from topic_handler.TopicHandlerPublisher import TopicHandlerPublisher
 from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
 
+
+# The vision pipeline is optional: without it the node still reacts to messages
+# published on /sorting/result by hand, which is how audio and light are tested.
+try:
+    from vision_module.WorldClient import TagWorld
+    from FeedbackController.FeedBackDecisionHandler import (
+        FeedBackDecisionHandler, SortState)
+    VISION_AVAILABLE = True
+except ImportError:
+    VISION_AVAILABLE = False
+
+# How often the tag world is judged, in seconds.
+DECISION_PERIOD_S = 1.0
+
 # Named arm gestures: joint_1..joint_6 target positions (radians), duration in seconds.
 # CHANGE / EXTEND PRESETS HERE
 ARM_GESTURES = {
@@ -17,11 +31,15 @@ ARM_GESTURES = {
     'home': ([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 3),
 }
 
-# TTS response for each /sorting/result value published by the vision pipeline.
+# Home Assistant light entity used for the visual feedback.
+LIGHT_ENTITY_ID = 'light.robolab'
+
+# Speech + light colour for each /sorting/result value published by the vision
+# pipeline. The bridge only accepts the colours green, yellow and red.
 SORTING_RESULT_FEEDBACK = {
-    'correct': 'You sorted it correctly. Well done!',
-    'incorrect': 'You sorted it wrong. I will fix it.',
-    'uncertain': 'I am uncertain with your sorting. Please double check it.',
+    'correct': ('You sorted it correctly. Well done!', 'green'),
+    'incorrect': ('You sorted it wrong. You can do better!', 'red'),
+    'uncertain': ('I am uncertain with your sorting. Please double check it.', 'yellow'),
 }
 
 
@@ -44,6 +62,21 @@ class FeedbackNode(Node):
             node=self, topic_spec=topics.sorting.result,
             callback=self._on_sorting_result)
 
+        # Remember the last verdict so the same feedback is not repeated every tick.
+        self._last_state = None
+
+        self._decision_handler = None
+        if VISION_AVAILABLE:
+            self._world = TagWorld(self)
+            self._decision_handler = FeedBackDecisionHandler(self._world)
+            self.create_timer(DECISION_PERIOD_S, self._on_decision_tick)
+            self.get_logger().info(
+                f'Judging the tag world every {DECISION_PERIOD_S}s')
+        else:
+            self.get_logger().warning(
+                'vision_module not found, only reacting to /sorting/result')
+
+    # light 
     def set_light(self, entity_id: str, action: str = 'turn_on', **params):
         """Publish a Home Assistant light command as JSON for a HA bridge node to consume."""
         payload = {'entity_id': entity_id, 'action': action, **params}
@@ -52,6 +85,7 @@ class FeedbackNode(Node):
         self.get_logger().info(f'HA light command: {msg.data}')
         self._ha_lights_pub.publish(msg)
 
+    # text for tts
     def speak(self, text: str):
         """Publish raw text to be spoken via TTS on the audio speaker node."""
         msg = String()
@@ -59,6 +93,7 @@ class FeedbackNode(Node):
         self.get_logger().info(f'Audio feedback: {msg.data}')
         self._audio_pub.publish(msg)
 
+    # voice for tts
     def set_voice(self, voice: str):
         """Publish a voice name to /tts/set_voice before the next speak() call."""
         msg = String()
@@ -66,6 +101,7 @@ class FeedbackNode(Node):
         self.get_logger().info(f'TTS voice set to: {msg.data}')
         self._audio_voice_pub.publish(msg)
 
+    # feedback gesture
     def play_gesture(self, name: str):
         """Publish a named arm gesture preset as a JointTrajectory."""
         if name not in ARM_GESTURES:
@@ -96,13 +132,44 @@ class FeedbackNode(Node):
         if gesture:
             self.play_gesture(gesture)
 
-    def _on_sorting_result(self, msg: String):
-        """React to the vision pipeline's sorting outcome with the matching TTS feedback."""
-        text = SORTING_RESULT_FEEDBACK.get(msg.data)
-        if text is None:
-            self.get_logger().warning(f'Unknown sorting result: "{msg.data}"')
+    def _on_decision_tick(self):
+        """Ask the decision handler what the current tag world means."""
+        verdict = self._decision_handler.evaluate()
+
+        # Only react when the situation actually changed, otherwise the same
+        # sentence would be repeated every DECISION_PERIOD_S seconds.
+        if verdict.state == self._last_state:
             return
-        self.speak(text)
+        self._last_state = verdict.state
+
+        self.get_logger().info(
+            f'Sorting state: {verdict.state.name} ({verdict.reason})')
+
+        # UNKNOWN means FeedbackSilent: not enough information to judge, so the
+        # robot keeps quiet instead of guessing.
+        if verdict.state == SortState.UNKNOWN:
+            return
+
+        result = 'correct' if verdict.state == SortState.CORRECT else 'incorrect'
+        self._react_to_result(result)
+
+    def _on_sorting_result(self, msg: String):
+        """React to a sorting outcome published by hand or by another node."""
+        self._react_to_result(msg.data)
+
+    def _react_to_result(self, result: str):
+        """Give the speech and light feedback belonging to one sorting result."""
+        feedback = SORTING_RESULT_FEEDBACK.get(result)
+        if feedback is None:
+            self.get_logger().warning(f'Unknown sorting result: "{result}"')
+            return
+
+        text, color = feedback
+        self.give_feedback(
+            light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on', 'color_name': color},
+            text=text,
+            # gesture='nod' # noch nicht implemented und getestet
+        )
 
 
 def main(args=None):
