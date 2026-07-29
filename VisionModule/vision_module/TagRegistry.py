@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
  
 DEFAULT_TAG_SIZE_M = 0.05
-CORNER_TAG_SIZE_M = 0.045
+CORNER_TAG_SIZE_M = 0.05
  
 
 @dataclass(frozen=True)
@@ -41,12 +41,14 @@ def _corner_tags() -> Dict[int, TagInfo]:
                 size_m=CORNER_TAG_SIZE_M, zone_id=zone_id)
     return out
  
+TRASH_TAG_SIZE_M = 0.035   # <-- measure this on the actual cube!
+
 TAGS: Dict[int, TagInfo] = {
-    **_corner_tags(),                                    # <-- missing
-    3: TagInfo(3, "Papier",  "trash", sorts_to=ZONE_PAPIER),
-    4: TagInfo(4, "Plastik", "trash", sorts_to=ZONE_PLASTIK),
-    5: TagInfo(5, "Organic", "trash", sorts_to=ZONE_RESTMUELL),
-    6: TagInfo(6, "Unknown", "trash", sorts_to=ZONE_RESTMUELL),
+    **_corner_tags(),
+    3: TagInfo(3, "Papier",  "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_PAPIER),
+    4: TagInfo(4, "Plastik", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_PLASTIK),
+    5: TagInfo(5, "Organic", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_RESTMUELL),
+    6: TagInfo(6, "Unknown", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_RESTMUELL),
     67: TagInfo(67, "Human", "human"),
 }
  
