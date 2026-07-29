@@ -38,7 +38,7 @@ class MotionTestNode(Node):
         super().__init__("motion_test")
 
         self.declare_parameter("planning_group", "manipulator")
-        self.declare_parameter("tool_link", "tool_frame")
+        self.declare_parameter("tool_link", "end_effector_link")
         self.declare_parameter("reference_frame", "base_link")
         self.declare_parameter("axis", "z")           # x, y or z
         self.declare_parameter("distance_m", 0.02)
