@@ -71,6 +71,9 @@ def target_zone(trash_tag_id: int) -> Optional[int]:
     t = TAGS.get(trash_tag_id)
     return t.sorts_to if t else None
 
+def is_unknown_trash(tag_id: int) -> bool:
+    t = TAGS.get(tag_id)
+    return t is not None and t.category == "trash" and t.sorts_to is None
  
 def corners_of(zone_id: int) -> Tuple[int, ...]:
     return ZONE_CORNERS.get(zone_id, ())
