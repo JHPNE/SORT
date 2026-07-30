@@ -39,13 +39,11 @@ class FeedBackGesture(ABC):
 class PositiveFeedBackGesture(FeedBackGesture):
     def handle(self) -> None:
         self.client.nod()
-        self.client.set_is_currently_moving(True)
  
  
 class NegativeFeedBackGesture(FeedBackGesture):
     def handle(self) -> None:
         self.client.shake()
-        self.client.set_is_currently_moving(True)
  
  
 class UnknownFeedBackGesture(FeedBackGesture):
