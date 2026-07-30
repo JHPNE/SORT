@@ -99,6 +99,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'nod' completed successfully.")
+        self.home()
         return True
 
     def shake(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
@@ -137,6 +138,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'shake' completed successfully.")
+        self.home()
         return True
 
     def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
@@ -172,6 +174,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'tilt' completed successfully.")
+        self.home()
         return True
 
 

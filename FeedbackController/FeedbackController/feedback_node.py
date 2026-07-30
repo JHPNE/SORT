@@ -48,7 +48,7 @@ class NegativeFeedBackGesture(FeedBackGesture):
  
 class UnknownFeedBackGesture(FeedBackGesture):
     def handle(self) -> None:
-        return
+        self.client.tilt()
 
 
 @dataclass(frozen=True)
