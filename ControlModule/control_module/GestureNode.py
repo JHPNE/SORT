@@ -32,15 +32,20 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
+from topic_handler.TopicList import TopicList
 
 from control_module.MoveGroupClient import MoveGroupClient
 from control_module.Gestures import ArmGestures, NOD_POSITION
 
 
 class GestureNode(Node):
+    currently_moving: bool = False
+
     def __init__(self):
         super().__init__("gesture_node")
+
+        topics = TopicList()
 
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("tool_link", "end_effector_link")
@@ -54,6 +59,9 @@ class GestureNode(Node):
         self.gesture_param = str(p("gesture").value).strip().lower()
         self.execute = bool(p("execute").value)
         self.vel_scale = float(p("velocity_scaling").value)
+        self._currently_moving: bool = False
+
+        self.status_pub = self.create_publisher(Bool, topics.arm.is_moving.name, 10)
 
         self.move = MoveGroupClient(
             self,
@@ -69,17 +77,39 @@ class GestureNode(Node):
         # Topic subscriber for /arm/gesture
         self.create_subscription(
             String,
-            "/arm/gesture",
+            topics.arm.gesture.name,
             self._gesture_callback,
             10
         )
+
+    @property
+    def currently_moving(self) -> bool:
+        """Getter for currently_moving state."""
+        return self._currently_moving
+
+    @currently_moving.setter
+    def currently_moving(self, value: bool):
+        """Setter for currently_moving state."""
+        self._currently_moving = bool(value)
+        msg = Bool()
+        msg.data = self._currently_moving
+        self.status_pub.publish(msg)
+
+    def _execute_gesture_worker(self, name: str):
+        self.currently_moving = True
+        try:
+            self.gestures.execute_gesture(
+                name, plan_only=not self.execute, velocity_scaling=self.vel_scale
+            )
+        finally:
+            self.currently_moving = False
 
     def _gesture_callback(self, msg: String):
         name = msg.data.strip().lower()
         self.get_logger().info(f"Received gesture request: '{name}'")
         thread = threading.Thread(
-            target=self.gestures.execute_gesture,
-            kwargs={"name": name, "plan_only": not self.execute, "velocity_scaling": self.vel_scale},
+            target=self._execute_gesture_worker,
+            args=(name,),
             daemon=True
         )
         thread.start()
@@ -93,8 +123,12 @@ class GestureNode(Node):
             self.get_logger().info(
                 f"Executing parameter gesture '{self.gesture_param}' "
                 f"({'EXECUTE' if self.execute else 'plan only'}) at speed {self.vel_scale:.2f}...")
-            self.gestures.execute_gesture(
-                self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
+            self.currently_moving = True
+            try:
+                self.gestures.execute_gesture(
+                    self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
+            finally:
+                self.currently_moving = False
         else:
             self.get_logger().info(
                 f"GestureNode active and listening on /arm/gesture topic "
