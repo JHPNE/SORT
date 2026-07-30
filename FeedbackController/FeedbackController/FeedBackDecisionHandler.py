@@ -118,12 +118,12 @@ class FeedBackDecisionHandler():
                        f"all {len(visible)} visible cube(s) correct", **common)
 
 
-    def parse_state(raw: str) -> SortState | None:
-        """SortState from a string on /sorting/result: "CORRECT", "correct",
-        or the raw enum value "0". None if it means nothing."""
-        key = str(raw).strip().upper()
-        if key in SortState.__members__:
-            return SortState[key]
-        if key.isdigit() and int(key) in set(s.value for s in SortState):
-            return SortState(int(key))
-        return None 
+def parse_state(raw: str) -> SortState | None:
+    """SortState from a string on /sorting/result: "CORRECT", "correct",
+    or the raw enum value "0". None if it means nothing."""
+    key = str(raw).strip().upper()
+    if key in SortState.__members__:
+        return SortState[key]
+    if key.isdigit() and int(key) in set(s.value for s in SortState):
+        return SortState(int(key))
+    return None 
