@@ -6,17 +6,17 @@ USAGE EXAMPLES:
 
 1. DIRECT CLI EXECUTION VIA PARAMETER (SINGLE GESTURE):
    # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
-   ros2 run control_module gesture_node --ros-args -p gesture:=nod
+   ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=false
 
    # B) Execute actual physical motion on arm (nod, shake, tilt, search, home):
-   ros2 run control_module gesture_node --ros-args -p gesture:=home -p execute:=true
-   ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
-   ros2 run control_module gesture_node --ros-args -p gesture:=tilt -p execute:=true
-   ros2 run control_module gesture_node --ros-args -p gesture:=shake -p execute:=true -p velocity_scaling:=0.50
+   ros2 run control_module gesture_node --ros-args -p gesture:=home
+   ros2 run control_module gesture_node --ros-args -p gesture:=nod
+   ros2 run control_module gesture_node --ros-args -p gesture:=tilt
+   ros2 run control_module gesture_node --ros-args -p gesture:=shake -p velocity_scaling:=0.50
 
 2. CONTROL DISPATCHER NODE VIA ROS 2 TOPIC:
-   # Terminal 1: Launch GestureNode in execution mode in the background:
-   ros2 run control_module gesture_node --ros-args -p execute:=true
+   # Terminal 1: Launch GestureNode in execution mode (default):
+   ros2 run control_module gesture_node
 
    # Terminal 2: Publish commands over topic:
    ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'nod'"
@@ -48,7 +48,7 @@ class GestureNode(Node):
         self.declare_parameter("velocity_scaling", 0.40)
         self.declare_parameter("gesture", "")            # nod, shake, tilt, search, home
 
-        self.declare_parameter("execute", False)         # False = dry run plan only
+        self.declare_parameter("execute", True)          # True = execute by default (False = dry run plan only)
 
         p = self.get_parameter
         self.gesture_param = str(p("gesture").value).strip().lower()
