@@ -1,5 +1,26 @@
-# SORT
-Separation-Oriented Recognition &amp; Tagging 
+# SORT (Separation-Oriented Recognition &amp; Tagging) 
+
+
+## Description
+
+The goal of SORT is to develop a robot-human collaboration system that gives feedback for a zone base object sorting task. This is based on the Kinova Arm 2 on in the RoboLab
+
+### The Zone-based Sorting Task
+
+A table is placed below the robot arm and divided into 3 zones by using April Tag markers. Additional 4 cubes with April Tags are given on the table. The cubes can then be placed onto the zones by the human.
+The cubes are categorized by zones: 
+- Cube 1 belongs to zone 1
+- Cube 2 belongs to zone 2
+- Cube 3 belongs to zone 3
+- Cube 4 belongs to no zone 
+
+We defined overall outcomes for this task:
+- successful placement: cube 1, 2 or 3 is placed in the correct zone
+- unsuccessful placement: cube 1, 2 or 3 is placed in the wrong zone
+- uncertain placement: cube 4 is placed in any zone
+
+TODO: keep in mind that the robot might also not recognize the zones and is uncertain because the cubes or anything blocks the zone detection.
+
 
 ## Helpful Commands
 
