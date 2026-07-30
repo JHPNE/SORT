@@ -8,9 +8,10 @@ USAGE EXAMPLES:
    # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
    ros2 run control_module gesture_node --ros-args -p gesture:=nod
 
-   # B) Execute actual physical motion on arm (nod, shake, search, home):
+   # B) Execute actual physical motion on arm (nod, shake, tilt, search, home):
    ros2 run control_module gesture_node --ros-args -p gesture:=home -p execute:=true
    ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
+   ros2 run control_module gesture_node --ros-args -p gesture:=tilt -p execute:=true
    ros2 run control_module gesture_node --ros-args -p gesture:=shake -p execute:=true -p velocity_scaling:=0.50
 
 2. CONTROL DISPATCHER NODE VIA ROS 2 TOPIC:
@@ -19,6 +20,7 @@ USAGE EXAMPLES:
 
    # Terminal 2: Publish commands over topic:
    ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'nod'"
+   ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'tilt'"
    ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'shake'"
    ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'search'"
    ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
@@ -44,7 +46,8 @@ class GestureNode(Node):
         self.declare_parameter("tool_link", "end_effector_link")
         self.declare_parameter("reference_frame", "base_link")
         self.declare_parameter("velocity_scaling", 0.40)
-        self.declare_parameter("gesture", "")            # nod, shake, search, home
+        self.declare_parameter("gesture", "")            # nod, shake, tilt, search, home
+
         self.declare_parameter("execute", False)         # False = dry run plan only
 
         p = self.get_parameter

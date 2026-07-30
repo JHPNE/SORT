@@ -52,6 +52,7 @@ class ArmGestures:
         self._gestures: dict[str, Callable[..., bool]] = {
             'nod': self.nod,
             'shake': self.shake,
+            'tilt': self.tilt,
             'search': self.search,
             'home': self.home,
         }
@@ -137,6 +138,42 @@ class ArmGestures:
 
         self.move.node.get_logger().info("Gesture 'shake' completed successfully.")
         return True
+
+    def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
+             velocity_scaling: float = 0.40) -> bool:
+        """
+        Head-tilt gesture: rotates wrist joint (joint_4) back and forth 3 times.
+
+        :param base_joints: Starting 6-joint position array. Defaults to NOD_POSITION.
+        :param plan_only: If True, only plans with MoveIt without executing movement.
+        :param velocity_scaling: Speed scaling factor (0.40 = 40% max speed for snappy motion).
+        """
+        orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+
+        rot_right = list(orig_base); rot_right[3] += 0.35   # Rotate joint_4 right (dq = +0.35 rad)
+        rot_left  = list(orig_base); rot_left[3]  -= 0.35   # Rotate joint_4 left  (dq = -0.35 rad)
+
+        sequence = [
+            (rot_right, "tilt_right_1"),
+            (rot_left,  "tilt_left_1"),
+            (rot_right, "tilt_right_2"),
+            (rot_left,  "tilt_left_2"),
+            (rot_right, "tilt_right_3"),
+            (rot_left,  "tilt_left_3"),
+            (orig_base, "tilt_center"),
+        ]
+
+        self.move.node.get_logger().info(
+            f"Starting gesture 'tilt' ({'plan_only' if plan_only else 'execute'}) at speed {velocity_scaling:.2f}")
+
+        for joint_target, label in sequence:
+            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
+                self.move.node.get_logger().error(f"Gesture 'tilt' aborted at step '{label}'")
+                return False
+
+        self.move.node.get_logger().info("Gesture 'tilt' completed successfully.")
+        return True
+
 
     def search(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
                velocity_scaling: float = 0.15) -> bool:

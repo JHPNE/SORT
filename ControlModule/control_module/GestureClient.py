@@ -46,6 +46,11 @@ class GestureClient:
         """Send 'shake' gesture command."""
         self.trigger("shake")
 
+    def tilt(self):
+        """Send 'tilt' gesture command."""
+        self.trigger("tilt")
+
+
     def search(self):
         """Send 'search' gesture command."""
         self.trigger("search")
