@@ -70,7 +70,7 @@ class ArmGestures:
         return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling) if name_clean != 'home' else fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
 
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-            velocity_scaling: float = 0.70) -> bool:
+            velocity_scaling: float = 1.0) -> bool:
         """
         Nodding gesture: pitches wrist (joint_5) up and down.
 
@@ -88,7 +88,7 @@ class ArmGestures:
             (nod_down, "nod_down1"),
             (nod_up,   "nod_up1"),
             (nod_down, "nod_down2"),
-            (nod_up,   "nod_up2"),
+            # (nod_up,   "nod_up2"),
             (nod_end,  "nod_end"),
         ]
 
@@ -105,7 +105,7 @@ class ArmGestures:
         return True
 
     def shake(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-              velocity_scaling: float = 0.70) -> bool:
+              velocity_scaling: float = 1.0) -> bool:
         """
         Head-shake gesture: rotates wrist plane (joint_4 by +90°), swivels joint_5 left/right, and returns.
 
@@ -126,7 +126,7 @@ class ArmGestures:
             (left,       "shake_left_1"),
             (right,      "shake_right_1"),
             (left,       "shake_left_2"),
-            (right,      "shake_right_2"),
+            # (right,      "shake_right_2"),
             (shake_base, "shake_center"),
             (orig_base,  "shake_reset_plane"),
         ]
@@ -144,7 +144,7 @@ class ArmGestures:
         return True
 
     def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-             velocity_scaling: float = 0.40) -> bool:
+             velocity_scaling: float = 0.80) -> bool:
         """
         Head-tilt gesture: rotates wrist joint (joint_4) back and forth 3 times.
 
@@ -161,7 +161,7 @@ class ArmGestures:
             (rot_right, "tilt_right_1"),
             (rot_left,  "tilt_left_1"),
             (rot_right, "tilt_right_2"),
-            (rot_left,  "tilt_left_2"),
+            # (rot_left,  "tilt_left_2"),
             (orig_base, "tilt_center"),
         ]
 
@@ -211,6 +211,6 @@ class ArmGestures:
         self.move.node.get_logger().info("Gesture 'search' completed successfully.")
         return True
 
-    def home(self, plan_only: bool = False, velocity_scaling: float = 0.15) -> bool:
+    def home(self, plan_only: bool = False, velocity_scaling: float = 0.80) -> bool:
         """Move arm to predefined HOME_POSITION."""
         return self.move.go_joint(HOME_POSITION, plan_only=plan_only, label="home", velocity_scaling=velocity_scaling)
