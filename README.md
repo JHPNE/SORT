@@ -51,9 +51,13 @@ Human holds additional april tag.
 before starting any nodes we need to change the domain for the second arm. Apply this in each terminal used. 
 Do this for all PCs running any nodes, i.e.  RoboLab PC running the arm nodes and the VM running this projects nodes
 ``` 
+export ROS_DOMAIN_ID=0
+```
+However while working with the other teams we use
+``` 
 export ROS_DOMAIN_ID=2
 ```
-
+NOTE: in Domain 2 we don't have access to home assistant and tts
 #### RoboLab PC
 start all nodes for the arm:
 
@@ -110,9 +114,8 @@ ros2 run feedback_controller feedback_node
 
 #### Manual Commands
 
+Gesture Node
 ``` bash
-# Gesture Node
-
 # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
 ros2 run control_module gesture_node --ros-args -p gesture:=nod
 
@@ -120,18 +123,13 @@ ros2 run control_module gesture_node --ros-args -p gesture:=nod
 ros2 run control_module gesture_node --ros-args -p gesture:=home -p execute:=true
 ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
 ros2 run control_module gesture_node --ros-args -p gesture:=shake -p execute:=true -p velocity_scaling:=0.50
-
-
 ```
 
-# Team Notes
-## Helpful Commands
+Manual Topic Pubs:
+``` bash 
 
-### Bash
-```
-sudo ufw disable
-
-# mover arm to home position manually
+# movement
+# home position hardcode
 ros2 topic pub --once /joint_trajectory_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{
   joint_names: ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6'],
   points: [
@@ -142,6 +140,19 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory trajectory_m
     }
   ]
 }"
+
+# tts
+ros2 topic pub --once /tts/generate std_msgs/msg/String "{data: 'Test'}"
+
+```
+
+# Team Notes
+## Helpful Commands
+
+### Bash
+```
+sudo ufw disable
+
 ```
 
 ### ROS2
