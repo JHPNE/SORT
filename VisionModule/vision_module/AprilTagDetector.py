@@ -159,7 +159,12 @@ class AprilTagDetector:
         self._rebuild_object_points()
 
     def set_tag_sizes(self, sizes: Dict[int, float]) -> None:
-        self.tag_sizes = dict(sizes)
+        for tid, s in sizes.items():
+            if not (0.005 <= float(s) <= 0.5):
+                raise ValueError(
+                    f"tag {tid}: size {s} m is not a plausible printed tag "
+                    f"(expected 5 mm - 0.5 m). Units slip? Sizes are METRES.")
+        self.tag_sizes = {int(k): float(v) for k, v in sizes.items()}
 
     def _obj_points_for(self, tag_id: int) -> np.ndarray:
         size = self.tag_sizes.get(tag_id, self.tag_size_m)
