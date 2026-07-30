@@ -50,7 +50,6 @@ class GestureNode(Node):
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("tool_link", "end_effector_link")
         self.declare_parameter("reference_frame", "base_link")
-        self.declare_parameter("velocity_scaling", 0.40)
         self.declare_parameter("gesture", "")            # nod, shake, tilt, search, pinpoint_tag, home
         self.declare_parameter("tag_id", DEFAULT_TAG_ID)
 
@@ -60,7 +59,6 @@ class GestureNode(Node):
         self.gesture_param = str(p("gesture").value).strip().lower()
         self.tag_id_param = int(p("tag_id").value)
         self.execute = bool(p("execute").value)
-        self.vel_scale = float(p("velocity_scaling").value)
         self._currently_moving: bool = False
 
         self.status_pub = self.create_publisher(Bool, topics.arm.is_moving.name, 10)
@@ -69,9 +67,7 @@ class GestureNode(Node):
             self,
             group_name=p("planning_group").value,
             tool_link=p("tool_link").value,
-            reference_frame=p("reference_frame").value,
-            velocity_scaling=self.vel_scale,
-            acceleration_scaling=self.vel_scale
+            reference_frame=p("reference_frame").value
         )
 
         self.gestures = ArmGestures(self.move)
@@ -97,12 +93,12 @@ class GestureNode(Node):
         msg.data = self._currently_moving
         self.status_pub.publish(msg)
 
-    def _execute_gesture_worker(self, name: str, tag_id: Optional[int] = None):
+    def _execute_gesture_worker(self, name: str, tag_id: Optional[int] = None, velocity_scaling: Optional[float] = None):
         self.currently_moving = True
         tid = tag_id if tag_id is not None else self.tag_id_param
         try:
             self.gestures.execute_gesture(
-                name, plan_only=not self.execute, velocity_scaling=self.vel_scale, tag_id=tid
+                name, plan_only=not self.execute, velocity_scaling=velocity_scaling, tag_id=tid
             )
         finally:
             self.currently_moving = False
@@ -111,6 +107,7 @@ class GestureNode(Node):
         raw_data = msg.data.strip()
         name = raw_data.lower()
         tag_id = self.tag_id_param
+        velocity_scaling: Optional[float] = None
 
         if raw_data.startswith("{") and raw_data.endswith("}"):
             try:
@@ -118,13 +115,15 @@ class GestureNode(Node):
                 name = str(data.get("name", "")).strip().lower()
                 if "tag_id" in data:
                     tag_id = int(data["tag_id"])
+                if "velocity_scaling" in data:
+                    velocity_scaling = float(data["velocity_scaling"])
             except Exception as e:
                 self.get_logger().error(f"Failed to parse gesture JSON: {e}")
 
-        self.get_logger().info(f"Received gesture request: '{name}' (tag_id={tag_id})")
+        self.get_logger().info(f"Received gesture request: '{name}' (tag_id={tag_id}, speed={velocity_scaling})")
         thread = threading.Thread(
             target=self._execute_gesture_worker,
-            kwargs={"name": name, "tag_id": tag_id},
+            kwargs={"name": name, "tag_id": tag_id, "velocity_scaling": velocity_scaling},
             daemon=True
         )
         thread.start()
@@ -137,17 +136,17 @@ class GestureNode(Node):
         if self.gesture_param:
             self.get_logger().info(
                 f"Executing parameter gesture '{self.gesture_param}' "
-                f"({'EXECUTE' if self.execute else 'plan only'}) at speed {self.vel_scale:.2f}...")
+                f"({'EXECUTE' if self.execute else 'plan only'})...")
             self.currently_moving = True
             try:
                 self.gestures.execute_gesture(
-                    self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
+                    self.gesture_param, plan_only=not self.execute, tag_id=self.tag_id_param)
             finally:
                 self.currently_moving = False
         else:
             self.get_logger().info(
                 f"GestureNode active and listening on /arm/gesture topic "
-                f"({'EXECUTE' if self.execute else 'plan only'} mode, speed {self.vel_scale:.2f}). "
+                f"({'EXECUTE' if self.execute else 'plan only'} mode). "
                 f"Press Ctrl+C to exit.")
             while rclpy.ok():
                 time.sleep(1.0)

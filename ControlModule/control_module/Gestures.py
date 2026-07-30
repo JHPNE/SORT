@@ -124,7 +124,7 @@ class ArmGestures:
         return None
 
     def execute_gesture(self, name: str, base_joints: Optional[List[float]] = None,
-                        plan_only: bool = False, velocity_scaling: float = 0.40,
+                        plan_only: bool = False, velocity_scaling: Optional[float] = None,
                         tag_id: int = DEFAULT_TAG_ID) -> bool:
         """Dispatch gesture by string name."""
         name_clean = name.strip().lower()
@@ -134,11 +134,20 @@ class ArmGestures:
             self.move.node.get_logger().error(
                 f"Unknown gesture '{name_clean}'. Known gestures: [{known}]")
             return False
+
         if name_clean == 'home':
-            return fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
+            if velocity_scaling is not None:
+                return fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
+            return fn(plan_only=plan_only)
+
         if name_clean in ('pin_point_tag', 'pinpoint'):
-            return fn(tag_id=tag_id, base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
-        return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
+            if velocity_scaling is not None:
+                return fn(tag_id=tag_id, base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
+            return fn(tag_id=tag_id, base_joints=base_joints, plan_only=plan_only)
+
+        if velocity_scaling is not None:
+            return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
+        return fn(base_joints=base_joints, plan_only=plan_only)
 
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
             velocity_scaling: float = 1.0) -> bool:
