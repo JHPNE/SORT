@@ -127,8 +127,8 @@ class FeedbackNode(Node):
         self.get_logger().info(
             f'Sorting state: {verdict.state.name} ({verdict.reason})')
 
-        if verdict.state == SortState.UNKNOWN:
-            return
+        # if verdict.state == SortState.UNKNOWN:
+        #     return
 
         result = SortState.CORRECT if verdict.state == SortState.CORRECT else SortState.INCORRECT 
         self._react_to_result(result)
@@ -145,6 +145,7 @@ class FeedbackNode(Node):
             return
 
         text, color, _ = feedback
+        print(f"text = {text}, color= {color}")
         self.give_feedback(
             light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on', 'color_name': color},
             text=text,
@@ -157,6 +158,7 @@ class FeedbackNode(Node):
             self.set_light(**light)
         if text:
             self.speak(text)
+            print("i am talking")
         if gesture:
             self.play_gesture(gesture)
 

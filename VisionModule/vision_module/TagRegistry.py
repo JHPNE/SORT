@@ -48,7 +48,7 @@ TAGS: Dict[int, TagInfo] = {
     3: TagInfo(3, "Papier",  "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_PAPIER),
     4: TagInfo(4, "Plastik", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_PLASTIK),
     5: TagInfo(5, "Organic", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_RESTMUELL),
-    6: TagInfo(6, "Unknown", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=ZONE_RESTMUELL),
+    6: TagInfo(6, "Unknown", "trash", size_m=TRASH_TAG_SIZE_M, sorts_to=None),
     67: TagInfo(67, "Human", "human"),
 }
  
