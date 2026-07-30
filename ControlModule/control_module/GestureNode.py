@@ -35,6 +35,8 @@ from rclpy.node import Node
 from std_msgs.msg import Bool, String
 from topic_handler.TopicList import TopicList
 
+from typing import Optional
+
 from control_module.MoveGroupClient import MoveGroupClient
 from control_module.Gestures import ArmGestures, NOD_POSITION, DEFAULT_TAG_ID
 
