@@ -223,3 +223,10 @@ ros2 run <package-name> <package-entry-point>
 
 ### Services
 Services are done similarly but are run with a `launch` tag. We will figure out how this is done once we need it. 
+
+### Start Script
+```
+cd ~/ros2_ws
+chmod +x start_sort.sh
+./start_sort.sh
+```
