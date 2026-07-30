@@ -22,7 +22,17 @@ PYTHON USAGE IN YOUR OWN CODE:
 import math
 import time
 from typing import Callable, List, Optional
+
+import numpy as np
+import rclpy
+from geometry_msgs.msg import PoseStamped
+from tf2_ros import Buffer, TransformListener
+
 from control_module.MoveGroupClient import MoveGroupClient
+from vision_module.WorldClient import TagWorld
+
+
+DEFAULT_TAG_ID: int = 6
 
 
 HOME_POSITION: List[float] = [
@@ -49,16 +59,73 @@ class ArmGestures:
 
     def __init__(self, move_client: MoveGroupClient):
         self.move = move_client
+        self._world: Optional[TagWorld] = None
+        self._tf_buffer: Optional[Buffer] = None
+        self._tf_listener: Optional[TransformListener] = None
+
         self._gestures: dict[str, Callable[..., bool]] = {
             'nod': self.nod,
             'shake': self.shake,
             'tilt': self.tilt,
             'search': self.search,
+            'pin_point_tag': self.pin_point_tag,
+            'pinpoint': self.pin_point_tag,
             'home': self.home,
         }
 
+    def _init_vision(self):
+        """Lazy initialization for TagWorld and TF listener."""
+        if self._world is None:
+            self._world = TagWorld(self.move.node, max_age_s=0.5)
+        if self._tf_buffer is None:
+            self._tf_buffer = Buffer()
+            self._tf_listener = TransformListener(self._tf_buffer, self.move.node)
+
+    def _latch_tag(self, tag_id: int, samples: int = 10, timeout_s: float = 5.0) -> Optional[np.ndarray]:
+        """Median tag position over several vision samples."""
+        positions: List[np.ndarray] = []
+        deadline = time.monotonic() + timeout_s
+        while len(positions) < samples and time.monotonic() < deadline:
+            pos = self._world.position(tag_id)
+            if pos is not None:
+                positions.append(np.asarray(pos, dtype=np.float64))
+            time.sleep(0.05)
+
+        if len(positions) < max(3, samples // 2):
+            self.move.node.get_logger().error(
+                f"tag {tag_id}: only {len(positions)} detections in {timeout_s:.0f}s - too few to aim at")
+            return None
+
+        q = self._world.quality(tag_id) or {}
+        self.move.node.get_logger().info(
+            f"tag {tag_id} latched from {len(positions)} samples "
+            f"[method={q.get('method')} fit_rms={q.get('fit_rms_m')}]")
+        return np.median(np.stack(positions), axis=0)
+
+    def _tool_pose(self, timeout_s: float = 10.0) -> Optional[PoseStamped]:
+        """Lookup current end-effector tool pose via TF."""
+        deadline = time.monotonic() + timeout_s
+        ref_frame = self.move.ref_frame
+        tool_link = self.move.tool_link
+        while time.monotonic() < deadline:
+            try:
+                tf = self._tf_buffer.lookup_transform(
+                    ref_frame, tool_link, rclpy.time.Time())
+                pose = PoseStamped()
+                pose.header.frame_id = ref_frame
+                pose.pose.position.x = tf.transform.translation.x
+                pose.pose.position.y = tf.transform.translation.y
+                pose.pose.position.z = tf.transform.translation.z
+                pose.pose.orientation = tf.transform.rotation
+                return pose
+            except Exception:
+                time.sleep(0.1)
+        self.move.node.get_logger().error(f"no TF {ref_frame} <- {tool_link}")
+        return None
+
     def execute_gesture(self, name: str, base_joints: Optional[List[float]] = None,
-                        plan_only: bool = False, velocity_scaling: float = 0.40) -> bool:
+                        plan_only: bool = False, velocity_scaling: float = 0.40,
+                        tag_id: int = DEFAULT_TAG_ID) -> bool:
         """Dispatch gesture by string name."""
         name_clean = name.strip().lower()
         fn = self._gestures.get(name_clean)
@@ -67,7 +134,11 @@ class ArmGestures:
             self.move.node.get_logger().error(
                 f"Unknown gesture '{name_clean}'. Known gestures: [{known}]")
             return False
-        return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling) if name_clean != 'home' else fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
+        if name_clean == 'home':
+            return fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
+        if name_clean in ('pin_point_tag', 'pinpoint'):
+            return fn(tag_id=tag_id, base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
+        return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
 
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
             velocity_scaling: float = 1.0) -> bool:
@@ -210,6 +281,104 @@ class ArmGestures:
 
         self.move.node.get_logger().info("Gesture 'search' completed successfully.")
         return True
+
+    def pin_point_tag(self, tag_id: int = DEFAULT_TAG_ID, base_joints: Optional[List[float]] = None,
+                      plan_only: bool = False, velocity_scaling: float = 0.15,
+                      step_m: float = 0.05, min_standoff_m: float = 0.25, min_z_m: float = 0.05) -> bool:
+        """
+        Search gesture that scans for tag_id in TagWorld, stops as soon as it is seen,
+        and then steps toward that tag (like TagApproachNode).
+        """
+        self._init_vision()
+
+        orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+        sweep_base = list(orig_base)
+        sweep_base[3] += math.radians(90)
+
+        left  = list(sweep_base); left[4]  -= math.radians(90)
+        right = list(sweep_base); right[4] += math.radians(90)
+
+        sequence = [
+            (sweep_base, "search_rotate_plane"),
+            (left,       "search_pan_left"),
+            (sweep_base, "search_pan_center_1"),
+            (right,      "search_pan_right"),
+            (sweep_base, "search_pan_center_2"),
+            (orig_base,  "search_reset_plane"),
+        ]
+
+        self.move.node.get_logger().info(
+            f"Starting 'pin_point_tag' search for tag {tag_id} ({'plan_only' if plan_only else 'execute'})...")
+
+        tag_found = False
+        for joint_target, label in sequence:
+            if tag_id in self._world.tag_ids():
+                self.move.node.get_logger().info(f"Tag {tag_id} detected before '{label}'! Stopping search sweep.")
+                tag_found = True
+                break
+
+            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
+                self.move.node.get_logger().error(f"Gesture 'pin_point_tag' search step '{label}' failed.")
+                return False
+
+            if tag_id in self._world.tag_ids():
+                self.move.node.get_logger().info(f"Tag {tag_id} detected after '{label}'! Stopping search sweep.")
+                tag_found = True
+                break
+
+        if not tag_found:
+            # Poll for up to 2.0s in case vision data just arrived
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                if tag_id in self._world.tag_ids():
+                    tag_found = True
+                    break
+                time.sleep(0.1)
+
+        if not tag_found:
+            self.move.node.get_logger().error(f"Tag {tag_id} was not seen during search sweep.")
+            return False
+
+        # --- Tag found! Proceeding with approach step towards tag ---
+        self.move.node.get_logger().info(f"Tag {tag_id} located! Latching position...")
+        tag_pos = self._latch_tag(tag_id=tag_id)
+        if tag_pos is None:
+            return False
+
+        start = self._tool_pose()
+        if start is None:
+            return False
+
+        tool_pos = np.array([start.pose.position.x, start.pose.position.y, start.pose.position.z])
+        delta = tag_pos - tool_pos
+        distance = float(np.linalg.norm(delta))
+
+        self.move.node.get_logger().info(
+            f"Tool at ({tool_pos[0]:+.3f}, {tool_pos[1]:+.3f}, {tool_pos[2]:+.3f})\n"
+            f"Tag {tag_id} at ({tag_pos[0]:+.3f}, {tag_pos[1]:+.3f}, {tag_pos[2]:+.3f})\n"
+            f"Distance: {distance:.3f}m")
+
+        if distance <= min_standoff_m:
+            self.move.node.get_logger().info(f"Already within min_standoff ({min_standoff_m:.3f}m). Done.")
+            return True
+
+        step = min(step_m, distance - min_standoff_m)
+        target_pos = tool_pos + (delta / distance) * step
+
+        if target_pos[2] < min_z_m:
+            self.move.node.get_logger().error(
+                f"Target Z {target_pos[2]:+.3f} is below min_z ({min_z_m:.3f}m) - refusing motion.")
+            return False
+
+        target = PoseStamped()
+        target.header.frame_id = self.move.ref_frame
+        target.pose.orientation = start.pose.orientation
+        target.pose.position.x = float(target_pos[0])
+        target.pose.position.y = float(target_pos[1])
+        target.pose.position.z = float(target_pos[2])
+
+        self.move.node.get_logger().info(f"Stepping {step:.3f}m toward tag {tag_id}...")
+        return self.move.go(target, plan_only=plan_only, label=f"pinpoint_approach_tag_{tag_id}")
 
     def home(self, plan_only: bool = False, velocity_scaling: float = 0.80) -> bool:
         """Move arm to predefined HOME_POSITION."""

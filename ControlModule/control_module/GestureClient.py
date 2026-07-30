@@ -30,12 +30,14 @@ if finished:
 =============================================================================
 """
 
+import json
 from typing import Optional
 import time
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 from topic_handler.TopicList import TopicList
+from control_module.Gestures import DEFAULT_TAG_ID
 
 
 class GestureClient:
@@ -75,11 +77,21 @@ class GestureClient:
             time.sleep(0.1)
         return not self.is_currently_moving
 
-    def trigger(self, gesture_name: str):
-        """Publish raw gesture string command."""
+    def trigger(self, gesture_name: str, tag_id: Optional[int] = None):
+        """Publish raw gesture string command with optional tag_id."""
         self.is_currently_moving = True
+        name_clean = gesture_name.strip().lower()
+
+        payload = {"name": name_clean}
+        if tag_id is not None:
+            payload["tag_id"] = int(tag_id)
+
         msg = String()
-        msg.data = gesture_name.strip().lower()
+        if len(payload) > 1:
+            msg.data = json.dumps(payload)
+        else:
+            msg.data = name_clean
+
         self.node.get_logger().info(f"Publishing gesture command: '{msg.data}' to {self.topic_name}")
         self.publisher.publish(msg)
 
@@ -95,10 +107,13 @@ class GestureClient:
         """Send 'tilt' gesture command."""
         self.trigger("tilt")
 
-
     def search(self):
         """Send 'search' gesture command."""
         self.trigger("search")
+
+    def pin_point_tag(self, tag_id: int = DEFAULT_TAG_ID):
+        """Send 'pin_point_tag' gesture command to search and approach specific tag_id."""
+        self.trigger("pin_point_tag", tag_id=tag_id)
 
     def home(self):
         """Send 'home' gesture command."""
