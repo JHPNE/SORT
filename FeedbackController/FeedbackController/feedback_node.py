@@ -2,6 +2,7 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional, Type
+import time
  
 import rclpy
 from rclpy.node import Node
@@ -38,11 +39,13 @@ class FeedBackGesture(ABC):
 class PositiveFeedBackGesture(FeedBackGesture):
     def handle(self) -> None:
         self.client.nod()
+        self.client.set_is_currently_moving(True)
  
  
 class NegativeFeedBackGesture(FeedBackGesture):
     def handle(self) -> None:
         self.client.shake()
+        self.client.set_is_currently_moving(True)
  
  
 class UnknownFeedBackGesture(FeedBackGesture):
@@ -127,8 +130,10 @@ class FeedbackNode(Node):
 
     def _on_decision_tick(self):
         """Ask the decision handler what the current tag world means."""
-        verdict: Verdict = self._decision_handler.evaluate()
+        if self._gestures.get_is_currently_moving():
+            return
 
+        verdict: Verdict = self._decision_handler.evaluate()
 
         if not verdict.sensing_ok:
             # Blind, not uncertain. Say nothing, keep the last light.
@@ -152,6 +157,9 @@ class FeedbackNode(Node):
 
     def _on_sorting_result(self, msg: String):
         """React to a sorting outcome published by hand or by another node."""
+        if self._gestures.get_is_currently_moving():
+            return
+
         state = parse_state(msg.data)
         if state is None:
             self.get_logger().warning(f'Unknown sorting result: "{msg.data}"')
@@ -176,15 +184,15 @@ class FeedbackNode(Node):
         """Convenience helper to trigger multiple feedback modalities at once."""
         if light:
             self.set_light(**light)
-        if text:
-            self.speak(text)
         if gesture:
-            self.play_gesture(gesture)
+            self.play_gesture(gesture, text)
 
-    def play_gesture(self, gesture: FeedBackGesture):
+    def play_gesture(self, gesture: FeedBackGesture, text: str = None):
         """Publish a named arm gesture preset as a JointTrajectory."""
         try:
             gesture.handle()
+            time.sleep(5)
+            self.speak(text)
         except Exception:
             self.get_logger().exception(
                 f'gesture {type(gesture).__name__} failed')
