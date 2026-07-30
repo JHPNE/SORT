@@ -320,18 +320,34 @@ class ArmGestures:
             f"Starting 'pin_point_tag' search for tag {tag_id} ({'plan_only' if plan_only else 'execute'})...")
 
         tag_found = False
+        found_tag_pos: Optional[np.ndarray] = None
+        latched_positions: List[np.ndarray] = []
+
+        def tag_stop_check() -> bool:
+            nonlocal found_tag_pos
+            if found_tag_pos is not None:
+                return True
+            pos = self._world.position(tag_id)
+            if pos is not None:
+                latched_positions.append(np.asarray(pos, dtype=np.float64))
+                if len(latched_positions) >= 2:
+                    found_tag_pos = np.median(np.stack(latched_positions), axis=0)
+                    return True
+            return False
+
         for joint_target, label in sequence:
-            if tag_id in self._world.tag_ids():
-                self.move.node.get_logger().info(f"Tag {tag_id} detected before '{label}'! Stopping search sweep.")
+            if tag_stop_check():
+                self.move.node.get_logger().info(f"Tag {tag_id} detected before starting '{label}'! Stopping search sweep.")
                 tag_found = True
                 break
 
-            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
-                self.move.node.get_logger().error(f"Gesture 'pin_point_tag' search step '{label}' failed.")
-                return False
+            self.move.go_joint(
+                joint_target, plan_only=plan_only, label=label,
+                velocity_scaling=velocity_scaling, stop_check=tag_stop_check
+            )
 
-            if tag_id in self._world.tag_ids():
-                self.move.node.get_logger().info(f"Tag {tag_id} detected after '{label}'! Stopping search sweep.")
+            if tag_stop_check():
+                self.move.node.get_logger().info(f"Tag {tag_id} detected during '{label}'! Stopping search sweep.")
                 tag_found = True
                 break
 
@@ -339,7 +355,7 @@ class ArmGestures:
             # Poll for up to 2.0s in case vision data just arrived
             deadline = time.monotonic() + 2.0
             while time.monotonic() < deadline:
-                if tag_id in self._world.tag_ids():
+                if tag_stop_check():
                     tag_found = True
                     break
                 time.sleep(0.1)
@@ -349,8 +365,8 @@ class ArmGestures:
             return False
 
         # --- Tag found! Proceeding with approach step towards tag ---
-        self.move.node.get_logger().info(f"Tag {tag_id} located! Latching position...")
-        tag_pos = self._latch_tag(tag_id=tag_id)
+        self.move.node.get_logger().info(f"Tag {tag_id} located! Proceeding to approach...")
+        tag_pos = found_tag_pos if found_tag_pos is not None else self._latch_tag(tag_id=tag_id)
         if tag_pos is None:
             return False
 
