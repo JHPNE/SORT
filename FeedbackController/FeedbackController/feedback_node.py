@@ -1,18 +1,21 @@
 import json
-
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Dict, Optional, Type
+ 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-
+ 
 from topic_handler.TopicList import TopicList
 from topic_handler.TopicHandlerPublisher import TopicHandlerPublisher
 from topic_handler.TopicHandlerSubscriber import TopicHandlerSubscriber
-
-from abc import ABC, abstractmethod
-from .FeedBackDecisionHandler import SortState, FeedBackDecisionHandler
+ 
+from .FeedBackDecisionHandler import (SortState, Verdict,
+                                      FeedBackDecisionHandler, parse_state)
 from vision_module.Zone import ZONES
 from vision_module.WorldClient import TagWorld
-
+ 
 from control_module.GestureClient import GestureClient
 
 # How often the tag world is judged, in seconds.
@@ -23,40 +26,47 @@ LIGHT_ENTITY_ID = 'light.robolab'
 
 
 class FeedBackGesture(ABC):
+ 
+    def __init__(self, client: GestureClient):
+        self.client = client
+ 
     @abstractmethod
-    def handle():
+    def handle(self) -> None:
         ...
 
 
 class PositiveFeedBackGesture(FeedBackGesture):
-    def handle():
-        print("Positive")
-        g = GestureClient()
-        g.nod()
-
-
+    def handle(self) -> None:
+        self.client.nod()
+ 
+ 
 class NegativeFeedBackGesture(FeedBackGesture):
-    def handle():
-        print("Negative")
-        g = GestureClient()
-        g.shake()
-
-
+    def handle(self) -> None:
+        self.client.shake()
+ 
+ 
 class UnknownFeedBackGesture(FeedBackGesture):
-    def handle():
-        print("Unknown")
+    def handle(self) -> None:
+        return
 
 
+@dataclass(frozen=True)
 class FeedbackReaction:
-    tts_message: str 
+    tts_message: str
     light_color: str
-    gesture: FeedBackGesture
+    gesture: Type[FeedBackGesture]
 
 
-RESULT_FEEDBACK = {
-    SortState.CORRECT: ('You sorted it correctly. Well done!', 'green', PositiveFeedBackGesture),
-    SortState.INCORRECT: ('You sorted it wrong. You can do better!', 'red', NegativeFeedBackGesture),
-    SortState.UNKNOWN: ('I am uncertain with your sorting. Please double check it.', 'yellow', UnknownFeedBackGesture),
+RESULT_FEEDBACK: Dict[SortState, FeedbackReaction] = {
+    SortState.CORRECT: FeedbackReaction(
+        'You sorted it correctly. Well done!', 'green',
+        PositiveFeedBackGesture),
+    SortState.INCORRECT: FeedbackReaction(
+        'You sorted it wrong. You can do better!', 'red',
+        NegativeFeedBackGesture),
+    SortState.UNKNOWN: FeedbackReaction(
+        "I do not know where that one belongs. You decide!", 'yellow',
+        UnknownFeedBackGesture),
 }
 
 
@@ -79,8 +89,10 @@ class FeedbackNode(Node):
             node=self, topic_spec=topics.sorting.result,
             callback=self._on_sorting_result)
 
+        self._gestures = GestureClient(self)
+
         # Remember the last verdict so the same feedback is not repeated every tick.
-        self._last_state = None
+        self._last_key: Optional[tuple] = None
 
         self._world = TagWorld(self)
         self._decision_handler = FeedBackDecisionHandler(self._world, zones=ZONES)
@@ -115,41 +127,49 @@ class FeedbackNode(Node):
 
     def _on_decision_tick(self):
         """Ask the decision handler what the current tag world means."""
-        verdict = self._decision_handler.evaluate()
+        verdict: Verdict = self._decision_handler.evaluate()
 
-        print(f"VERDICT STATE: {verdict}")
 
-        if verdict.state == self._last_state:
+        if not verdict.sensing_ok:
+            # Blind, not uncertain. Say nothing, keep the last light.
+            self.get_logger().debug(f'no judgement: {verdict.reason}')
+            self._last_key = None      # re-announce once we can see again
             return
-
-        self._last_state = verdict.state
-
+ 
+        if verdict.implausible:
+            self.get_logger().warning(
+                f'implausible cube poses {verdict.implausible} - check the '
+                f'tag sizes in TagRegistry')
+ 
+        key = verdict.key()
+        if key == self._last_key:
+            return
+        self._last_key = key
+ 
         self.get_logger().info(
             f'Sorting state: {verdict.state.name} ({verdict.reason})')
-
-        # if verdict.state == SortState.UNKNOWN:
-        #     return
-
-        result = SortState.CORRECT if verdict.state == SortState.CORRECT else SortState.INCORRECT 
-        self._react_to_result(result)
+        self._react_to_result(verdict.state)
 
     def _on_sorting_result(self, msg: String):
         """React to a sorting outcome published by hand or by another node."""
-        self._react_to_result(msg.data)
+        state = parse_state(msg.data)
+        if state is None:
+            self.get_logger().warning(f'Unknown sorting result: "{msg.data}"')
+            return
+        self._react_to_result(state)
 
     def _react_to_result(self, result: SortState):
         """Give the speech and light feedback belonging to one sorting result."""
-        feedback = RESULT_FEEDBACK.get(result)
-        if feedback is None:
+        reaction = RESULT_FEEDBACK.get(result)
+        if reaction is None:
             self.get_logger().warning(f'Unknown sorting result: "{result}"')
             return
 
-        text, color, _ = feedback
-        print(f"text = {text}, color= {color}")
         self.give_feedback(
-            light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on', 'color_name': color},
-            text=text,
-            gesture=FeedBackGesture.handle
+            light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on',
+                   'color_name': reaction.light_color},
+            text=reaction.tts_message,
+            gesture=reaction.gesture(self._gestures),
         )
 
     def give_feedback(self, light: dict = None, text: str = None, gesture: str = None):
@@ -158,18 +178,16 @@ class FeedbackNode(Node):
             self.set_light(**light)
         if text:
             self.speak(text)
-            print("i am talking")
         if gesture:
             self.play_gesture(gesture)
 
     def play_gesture(self, gesture: FeedBackGesture):
         """Publish a named arm gesture preset as a JointTrajectory."""
-        if gesture == PositiveFeedBackGesture:
-            print("CORRRRRRECT")
-        else:
-            print("FALLSSSEEE")
-        #gesture.handle()
-
+        try:
+            gesture.handle()
+        except Exception:
+            self.get_logger().exception(
+                f'gesture {type(gesture).__name__} failed')
 
 
 def main(args=None):
