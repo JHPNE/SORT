@@ -92,6 +92,13 @@ class GestureNode(Node):
                 f"({'EXECUTE' if self.execute else 'plan only'}) at speed {self.vel_scale:.2f}...")
             self.gestures.execute_gesture(
                 self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
+        else:
+            self.get_logger().info(
+                f"GestureNode active and listening on /arm/gesture topic "
+                f"({'EXECUTE' if self.execute else 'plan only'} mode, speed {self.vel_scale:.2f}). "
+                f"Press Ctrl+C to exit.")
+            while rclpy.ok():
+                time.sleep(1.0)
 
 
 def main(args=None):
@@ -99,12 +106,15 @@ def main(args=None):
     node = GestureNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-    threading.Thread(target=executor.spin, daemon=True).start()
+    spin_thread = threading.Thread(target=executor.spin, daemon=True)
+    spin_thread.start()
     try:
+        time.sleep(2.0)
         node.run()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 
