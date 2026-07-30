@@ -23,6 +23,14 @@ class ArmTopics(BaseModel):
         name="/joint_trajectory_controller/joint_trajectory",
         msg_type="trajectory_msgs/msg/JointTrajectory",
     )
+    gesture: TopicSpec = TopicSpec(
+        name="/arm/gesture",
+        msg_type="std_msgs/msg/String",
+    )
+    is_moving: TopicSpec = TopicSpec(
+        name="/arm/is_moving",
+        msg_type="std_msgs/msg/Bool",
+    )
 
 class FeedbackTopics(BaseModel):
     ha_lights: TopicSpec = TopicSpec(
