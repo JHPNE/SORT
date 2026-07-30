@@ -26,6 +26,7 @@ from typing import Callable, List, Optional
 import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import JointState
 from tf2_ros import Buffer, TransformListener
 
 from control_module.MoveGroupClient import MoveGroupClient
@@ -62,6 +63,8 @@ class ArmGestures:
         self._world: Optional[TagWorld] = None
         self._tf_buffer: Optional[Buffer] = None
         self._tf_listener: Optional[TransformListener] = None
+        self._joint_sub = None
+        self._current_joint_positions: Optional[List[float]] = None
 
         self._gestures: dict[str, Callable[..., bool]] = {
             'nod': self.nod,
@@ -80,6 +83,32 @@ class ArmGestures:
         if self._tf_buffer is None:
             self._tf_buffer = Buffer()
             self._tf_listener = TransformListener(self._tf_buffer, self.move.node)
+
+    def _init_joint_listener(self):
+        """Lazy subscriber for /joint_states."""
+        if self._joint_sub is None:
+            self._joint_sub = self.move.node.create_subscription(
+                JointState,
+                "/joint_states",
+                self._joint_state_callback,
+                10
+            )
+
+    def _joint_state_callback(self, msg: JointState):
+        name_to_pos = dict(zip(msg.name, msg.position))
+        joint_names = [f"joint_{i}" for i in range(1, 7)]
+        if all(jn in name_to_pos for jn in joint_names):
+            self._current_joint_positions = [float(name_to_pos[jn]) for jn in joint_names]
+
+    def get_current_joints(self, timeout_s: float = 2.0) -> Optional[List[float]]:
+        """Get latest 6 joint angles from /joint_states."""
+        self._init_joint_listener()
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if self._current_joint_positions is not None:
+                return list(self._current_joint_positions)
+            time.sleep(0.05)
+        return None
 
     def _latch_tag(self, tag_id: int, samples: int = 10, timeout_s: float = 5.0) -> Optional[np.ndarray]:
         """Median tag position over several vision samples."""
@@ -146,18 +175,23 @@ class ArmGestures:
             return fn(tag_id=tag_id, base_joints=base_joints, plan_only=plan_only)
 
         if velocity_scaling is not None:
-            return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling)
-        return fn(base_joints=base_joints, plan_only=plan_only)
+            return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling, tag_id=tag_id)
+        return fn(base_joints=base_joints, plan_only=plan_only, tag_id=tag_id)
 
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-            velocity_scaling: float = 1.0) -> bool:
+            velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Nodding gesture: pitches wrist (joint_5) up and down.
+        Nodding gesture: pinpoints AprilTag first, then pitches wrist (joint_5) up and down.
+        """
+        if base_joints is None:
+            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'nod'...")
+            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
+                current = self.get_current_joints()
+                if current is not None:
+                    base_joints = current
+            else:
+                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
 
-        :param base_joints: Starting 6-joint position array. Defaults to NOD_POSITION.
-        :param plan_only: If True, only plans with MoveIt without executing movement.
-        :param velocity_scaling: Speed scaling factor (0.40 = 40% max speed for snappy motion).
-        """
         base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
         nod_down = list(base); nod_down[4] += math.radians(30)
@@ -185,14 +219,19 @@ class ArmGestures:
         return True
 
     def shake(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-              velocity_scaling: float = 1.0) -> bool:
+              velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Head-shake gesture: rotates wrist plane (joint_4 by +90°), swivels joint_5 left/right, and returns.
+        Head-shake gesture: pinpoints AprilTag first, then swivels joint_5 left/right.
+        """
+        if base_joints is None:
+            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'shake'...")
+            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
+                current = self.get_current_joints()
+                if current is not None:
+                    base_joints = current
+            else:
+                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
 
-        :param base_joints: Starting 6-joint position array. Defaults to NOD_POSITION.
-        :param plan_only: If True, only plans with MoveIt without executing movement.
-        :param velocity_scaling: Speed scaling factor (0.40 = 40% max speed for snappy motion).
-        """
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
         shake_base = list(orig_base)
@@ -224,14 +263,19 @@ class ArmGestures:
         return True
 
     def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
-             velocity_scaling: float = 0.80) -> bool:
+             velocity_scaling: float = 0.80, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Head-tilt gesture: rotates wrist joint (joint_4) back and forth 3 times.
+        Head-tilt gesture: pinpoints AprilTag first, then rotates wrist joint (joint_4).
+        """
+        if base_joints is None:
+            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'tilt'...")
+            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
+                current = self.get_current_joints()
+                if current is not None:
+                    base_joints = current
+            else:
+                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
 
-        :param base_joints: Starting 6-joint position array. Defaults to NOD_POSITION.
-        :param plan_only: If True, only plans with MoveIt without executing movement.
-        :param velocity_scaling: Speed scaling factor (0.40 = 40% max speed for snappy motion).
-        """
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
         rot_right = list(orig_base); rot_right[3] += math.radians(50)
