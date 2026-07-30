@@ -41,7 +41,7 @@ def _corner_tags() -> Dict[int, TagInfo]:
                 size_m=CORNER_TAG_SIZE_M, zone_id=zone_id)
     return out
  
-TRASH_TAG_SIZE_M = 0.035   # <-- measure this on the actual cube!
+TRASH_TAG_SIZE_M = 0.05   # <-- measure this on the actual cube!
 
 TAGS: Dict[int, TagInfo] = {
     **_corner_tags(),
