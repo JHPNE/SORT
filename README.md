@@ -120,10 +120,9 @@ ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
 
 ### Startup Script on our VM (phri1)
 
-You can use this instead of starting every node by hand and building and refreshing
+You can use this instead of starting every node by hand and building and refreshing. Make sure to update the path to your VM or Instance before launching the script. The Script is in the SORT folder.
 
 ```
-cd ~/ros2_ws
 chmod +x start_sort.sh
 ./start_sort.sh
 ```
