@@ -117,12 +117,13 @@ ros2 run feedback_controller feedback_node
 Gesture Node
 ``` bash
 # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
-ros2 run control_module gesture_node --ros-args -p gesture:=nod
+ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=false
 
-# B) Execute actual physical motion on arm (nod, shake, search, home):
-ros2 run control_module gesture_node --ros-args -p gesture:=home -p execute:=true
-ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=true
-ros2 run control_module gesture_node --ros-args -p gesture:=shake -p execute:=true -p velocity_scaling:=0.50
+# B) Execute actual physical motion on arm (nod, shake, tilt, search, home):
+ros2 run control_module gesture_node --ros-args -p gesture:=home
+ros2 run control_module gesture_node --ros-args -p gesture:=nod
+ros2 run control_module gesture_node --ros-args -p gesture:=tilt
+ros2 run control_module gesture_node --ros-args -p gesture:=shake
 ```
 
 Manual Topic Pubs:
