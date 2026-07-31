@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
  
 from geometry_msgs.msg import Pose, PoseStamped, Vector3
 from moveit_msgs.action import MoveGroup
@@ -114,30 +114,27 @@ class MoveGroupClient:
         return goal
 
     def go(self, pose: PoseStamped, plan_only: bool = True,
-           label: str = "goal", timeout_sec: float = 60.0) -> bool:
-        """Plan to a pose, and execute it unless plan_only.
- 
-        Always run plan_only=True first on a new pose. It exercises IK,
-        collision checking and the planner without moving anything, so a bad
-        pose costs you a log line instead of a collision.
-        """
+           label: str = "goal", timeout_sec: float = 60.0,
+           stop_check: Optional[Callable[[], bool]] = None) -> bool:
+        """Plan to a pose, and execute it unless plan_only."""
         p = pose.pose.position
         self.node.get_logger().info(
             f"{'planning' if plan_only else 'executing'} '{label}' -> "
             f"({p.x:+.3f}, {p.y:+.3f}, {p.z:+.3f}) in {pose.header.frame_id}")
- 
+
         result = self.action.send(self._goal(pose, plan_only),
-                                  timeout_sec=timeout_sec)
+                                  timeout_sec=timeout_sec,
+                                  stop_check=stop_check)
         if result is None:
             return False
- 
+
         code = result.error_code.val
-        if code == 1:                                  # SUCCESS
+        if code == 1:
             n = len(result.planned_trajectory.joint_trajectory.points)
             self.node.get_logger().info(
                 f"'{label}' ok, {n} trajectory points")
             return True
- 
+
         self.node.get_logger().error(
             f"'{label}' failed: {describe_error(code)} (code {code})")
         return False
@@ -188,14 +185,16 @@ class MoveGroupClient:
 
     def go_joint(self, joint_positions: list[float], plan_only: bool = True,
                  label: str = "joint_goal", velocity_scaling: Optional[float] = None,
-                 timeout_sec: float = 60.0) -> bool:
+                 timeout_sec: float = 60.0,
+                 stop_check: Optional[Callable[[], bool]] = None) -> bool:
         """Plan to a joint configuration, and execute it unless plan_only."""
         self.node.get_logger().info(
             f"{'planning' if plan_only else 'executing'} joint '{label}' -> "
             f"[{', '.join(f'{v:+.3f}' for v in joint_positions)}]")
 
         result = self.action.send(self._joint_goal(joint_positions, plan_only, velocity_scaling),
-                                  timeout_sec=timeout_sec)
+                                  timeout_sec=timeout_sec,
+                                  stop_check=stop_check)
         if result is None:
             return False
 

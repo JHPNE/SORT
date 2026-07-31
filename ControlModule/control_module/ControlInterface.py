@@ -1,6 +1,6 @@
 import importlib
-from typing import Optional
- 
+from typing import Callable, Optional
+
 from pydantic import BaseModel
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -63,7 +63,8 @@ class ActionHandlerClient:
 
         return False
 
-    def send(self, goal, timeout_sec: float = 60.0, spin_dt: float = 0.02):
+    def send(self, goal, timeout_sec: float = 60.0, spin_dt: float = 0.02,
+             stop_check: Optional[Callable[[], bool]] = None):
         import time
  
         send_future = self.client.send_goal_async(goal)
@@ -82,6 +83,11 @@ class ActionHandlerClient:
  
         result_future = handle.get_result_async()
         while not result_future.done():
+            if stop_check is not None and stop_check():
+                self.node.get_logger().info(
+                    f'{self.spec.name}: stop condition met during execution, cancelling action')
+                handle.cancel_goal_async()
+                return None
             if time.monotonic() > deadline:
                 self.node.get_logger().error(
                     f'{self.spec.name}: timed out during execution, cancelling')
