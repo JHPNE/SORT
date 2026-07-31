@@ -178,11 +178,20 @@ class ArmGestures:
             return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling, tag_id=tag_id)
         return fn(base_joints=base_joints, plan_only=plan_only, tag_id=tag_id)
 
+    def _compute_aligned_joint4(self, q1: float, current_q4: float, offset_rad: float = 0.0) -> float:
+        """
+        Dynamically calculates joint_4 angle to level joint_5 pitch axis relative to base rotation q1.
+        offset_rad: 0.0 for nod/tilt (vertical pitch), +pi/2 for shake (horizontal swivel).
+        """
+        target = -q1 + offset_rad
+        diff = (target - current_q4 + math.pi) % (2 * math.pi) - math.pi
+        return current_q4 + diff
+
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
             velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Nodding gesture: pinpoints AprilTag first, then pitches wrist (joint_5) up and down.
-        Aligns joint_4 (wrist roll) to 0.0 rad facing AprilTag before nodding.
+        Dynamically aligns joint_4 (wrist roll) so joint_5 pitches vertically facing the AprilTag.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'nod'...")
@@ -195,9 +204,9 @@ class ArmGestures:
 
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        # Align joint_4 (wrist roll, index 3) to 0.0 rad so joint_5 pitches vertically facing AprilTag
+        # Dynamically align joint_4 relative to base rotation q1 (orig_base[0])
         nod_base = list(orig_base)
-        nod_base[3] = 0.0
+        nod_base[3] = self._compute_aligned_joint4(orig_base[0], orig_base[3], offset_rad=0.0)
 
         nod_down = list(nod_base); nod_down[4] += math.radians(30)
         nod_up   = list(nod_base); nod_up[4]   -= math.radians(30)
@@ -227,7 +236,7 @@ class ArmGestures:
               velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Head-shake gesture: pinpoints AprilTag first, then swivels joint_5 left/right.
-        Aligns joint_4 (wrist roll) to +90° (+1.57 rad) facing AprilTag before shaking.
+        Dynamically aligns joint_4 (wrist roll) to +90° relative to base rotation for horizontal swiveling.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'shake'...")
@@ -240,9 +249,9 @@ class ArmGestures:
 
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        # Align joint_4 (index 3) to +90° (+1.57 rad) for horizontal swiveling facing AprilTag
+        # Dynamically align joint_4 to +90° (+1.57 rad) relative to base rotation q1
         shake_base = list(orig_base)
-        shake_base[3] = math.pi / 2
+        shake_base[3] = self._compute_aligned_joint4(orig_base[0], orig_base[3], offset_rad=math.pi / 2)
 
         left  = list(shake_base); left[4]  += math.radians(30)
         right = list(shake_base); right[4] -= math.radians(30)
@@ -272,7 +281,7 @@ class ArmGestures:
              velocity_scaling: float = 0.80, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Head-tilt gesture: pinpoints AprilTag first, then rotates wrist joint (joint_4).
-        Aligns joint_4 to 0.0 rad facing AprilTag before tilting side-to-side.
+        Dynamically aligns joint_4 to neutral facing AprilTag before tilting side-to-side.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'tilt'...")
@@ -285,9 +294,9 @@ class ArmGestures:
 
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        # Align joint_4 (index 3) to neutral 0.0 rad facing AprilTag
+        # Dynamically align joint_4 relative to base rotation q1
         tilt_base = list(orig_base)
-        tilt_base[3] = 0.0
+        tilt_base[3] = self._compute_aligned_joint4(orig_base[0], orig_base[3], offset_rad=0.0)
 
         rot_right = list(tilt_base); rot_right[3] += math.radians(50)
         rot_left  = list(tilt_base); rot_left[3]  -= math.radians(50)
