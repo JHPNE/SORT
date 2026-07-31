@@ -22,8 +22,6 @@ We defined overall outcomes for this task:
 - unsuccessful placement: cube 1, 2 or 3 is placed in the wrong zone
 - uncertain placement: cube 4 is placed in any zone
 
-NOTE: keep in mind that the robot might also not recognize the zones and is uncertain because the cubes or anything blocks the zone detection.
-
 ### Goal of the Human Robot Interaction
 SORT is supervising the zones while being ready to start its feedback loop. 
 Feedback is triggered, once SORT recognizes a cube being placed into a zone.  
@@ -33,19 +31,19 @@ Overall the feedback contains the following components:
 - gesture feedback
 - voice feedback
 
-*(if gripper is available)*  
-2. cognitive feedback: 
-- correction of the cube into the correct zone by the robot arm
+### Simplified Architecture
 
-## Setup
+In `vision_module` AprilTagDetector takes the Input of all connected cameras over the TopicHandler and detects the AprilTags with respect to the camera, which did. The `TagDetectorNode` then publishes `/vision/tag_detections/<camera>`, which we then use in `WorlSpaceNode` and return `vision/tags`.
+
+`TagWorld` and `Zone` are used to determine the Pose of a AprilTag in 3d Space through triangulation and Zone creates a geometry that determine where a Zone is.
+
+
+## Setup SORT
 
 ### Physical Setup in RoboLab
 Place a table under the arm. Height:   
 Put the zones (printed DinA4 sheets) on the table.   
 Place the cubes 1 to 4 next to the zones.
-
-*if we add human tracking for movements*:  
-Human holds additional april tag. 
 
 ### Software Setup in RoboLab
 before starting any nodes we need to change the domain for the second arm. Apply this in each terminal used. 
@@ -65,7 +63,6 @@ start all nodes for the arm:
 # Terminal 1 KINOVA ARM 2
 
 ros2 launch kinova_gen3_6dof_robotiq_2f_85_moveit_config robot.launch.py robot_ip:=10.163.18.199 use_fake_hardware:=false
-
 
 # Terminal 2 KINOVA ARM 2 CAMERA
 
@@ -95,7 +92,11 @@ in case you build it in the wrong folder we can remove it by using:
 rm -rf build install log
 ```
 
+## Running SORT
+
 once everything is built we need to start our nodes:
+
+### Manually Starting All Nodes
 
 ``` bash
 # Terminal 1 
@@ -112,7 +113,14 @@ ros2 run feedback_controller feedback_node
 
 ```
 
-#### Manual Commands
+### Startup Script on our VM (phri1)
+```
+cd ~/ros2_ws
+chmod +x start_sort.sh
+./start_sort.sh
+```
+
+### Manual Commands
 
 Gesture Node
 ``` bash
@@ -124,7 +132,14 @@ ros2 run control_module gesture_node --ros-args -p gesture:=home
 ros2 run control_module gesture_node --ros-args -p gesture:=nod
 ros2 run control_module gesture_node --ros-args -p gesture:=tilt
 ros2 run control_module gesture_node --ros-args -p gesture:=shake
+# or
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'nod'"
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'shake'"
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'tilt'"
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'search'"
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
 ```
+*NOTE*: does not work when running SORT via our startup script.
 
 Manual Topic Pubs:
 ``` bash 
@@ -145,89 +160,4 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory trajectory_m
 # tts
 ros2 topic pub --once /tts/generate std_msgs/msg/String "{data: 'Test'}"
 
-```
-
-# Team Notes
-## Helpful Commands
-
-### Bash
-```
-sudo ufw disable
-
-```
-
-### ROS2
-
-```
-ros2 node list
-ros2 topic list
-ros2 service list
-ros2 action list
-```
-
-## Connecting to the lab PC
-
-The lab PC runs on domain 0. **Every new terminal** needs this before any `ros2` command,
-otherwise you will not see the lab nodes (`/tts_node`, `/homeassistant_node`, ...) and
-anything you publish silently goes nowhere:
-
-```
-export ROS_DOMAIN_ID=0
-source install/setup.bash
-```
-
-Check it worked - `/tts_node` must appear in the list:
-```
-ros2 node list
-```
-
-To make it permanent, add it to your `~/.bashrc`: maybe leave it and only export domain id
-```
-echo "export ROS_DOMAIN_ID=0" >> ~/.bashrc
-```
-
-## ROS2 Basics
-### 1. Creating a package for ros2:
-Note: package names should start with a lower case letter and only contain lower case letters, digits, underscores, and dashes.
-
-```
-ros2 pkg create --build-type ament_python --license Apache-2.0 <package-name>
-```  
-`build-type` sets the folder structure to the one we use  
-`license` use any license to not get warnings. we can change them at a later point.
-
-This creates a package folder with folders and files for you. The most relevant for us are:   
-- `package.xml`: add info about description, maintainer and license. add package imports in `<exec_depend>`
-- `<package-name>` folder: add source code for your package in here
-- `setup.py`: match the `maintainer, maintainer_email, description and license fields` to your `package.xml`. Add the entry points of your package.  
-    ``` 
-    entry_points={
-            'console_scripts': [
-                    'talker = py_pubsub.publisher_member_function:main',
-            ],
-    },
-    ```
-
-Might also get relevant for us:
-- `test` folder: maybe someone should look into how to test packages
-
-### 2. Building a Package
-```
-colcon build --packages-select <package-name>
-```
-
-### 3. Run a Package
-```
-source install/setup.bash
-ros2 run <package-name> <package-entry-point>
-```
-
-### Services
-Services are done similarly but are run with a `launch` tag. We will figure out how this is done once we need it. 
-
-### Start Script
-```
-cd ~/ros2_ws
-chmod +x start_sort.sh
-./start_sort.sh
 ```
