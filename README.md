@@ -10,22 +10,24 @@ The goal of SORT is to develop a robot-human collaboration system that gives fee
 
 ### The Zone-based Sorting Task
 
-A table is placed below the robot arm and divided into 3 zones by using April Tag markers. Additional 4 cubes with April Tags are given on the table. The cubes can then be placed onto the zones by the human.
+A table is placed below the robot arm and divided into 3 zones by using April Tag markers in each corner. Additional 4 cubes with April Tags are given on the table. The cubes can then be placed onto the zones by the human.
+
 The cubes are categorized by zones: 
-- Cube 1 belongs to zone 1
-- Cube 2 belongs to zone 2
-- Cube 3 belongs to zone 3
-- Cube 4 belongs to no zone 
+- Cube 3 belongs to Paper Zone (100 - 103 )
+- Cube 4 belongs to Plastik Zone (104 - 107)
+- Cube 5 belongs to Restmüll (108 - 111)
+- Cube 6 belongs to no zone (Unknown)
 
 We defined overall outcomes for this task:
-- successful placement: cube 1, 2 or 3 is placed in the correct zone
-- unsuccessful placement: cube 1, 2 or 3 is placed in the wrong zone
-- uncertain placement: cube 4 is placed in any zone
+- successful placement: cube 3, 4 or 5 placed in the correct zone
+- unsuccessful placement: cube 3, 4 or 5 is placed in the wrong zone
+- uncertain placement: cube 6 is placed alone in any zone
 
 ### Goal of the Human Robot Interaction
 SORT is supervising the zones while being ready to start its feedback loop. 
 Feedback is triggered, once SORT recognizes a cube being placed into a zone.  
 Overall the feedback contains the following components:  
+
 1. affective feedback:
 - light feedback
 - gesture feedback
@@ -43,7 +45,7 @@ In `vision_module` AprilTagDetector takes the Input of all connected cameras ove
 ### Physical Setup in RoboLab
 Place a table under the arm. Height:   
 Put the zones (printed DinA4 sheets) on the table.   
-Place the cubes 1 to 4 next to the zones.
+Place the cubes 3 to 6 into the zones.
 
 ### Software Setup in RoboLab
 before starting any nodes we need to change the domain for the second arm. Apply this in each terminal used. 
@@ -57,7 +59,7 @@ export ROS_DOMAIN_ID=2
 ```
 NOTE: in Domain 2 we don't have access to home assistant and tts
 #### RoboLab PC
-start all nodes for the arm:
+start all nodes for the arm and the second camera:
 
 ``` bash
 # Terminal 1 KINOVA ARM 2
@@ -73,7 +75,7 @@ ros2 launch kinova_vision kinova_vision.launch.py launch_depth:=false device:=10
 ros2 run realsense2_camera realsense2_camera_node
 ```
 
-#### VM / PC running SORT
+#### VM / PC running SORT (See Start Sort for simplified approach)
 before starting any SORT related node, we need to build the packages first:
 ``` bash
 # make sure you are in the correct workspace when building
@@ -92,7 +94,7 @@ in case you build it in the wrong folder we can remove it by using:
 rm -rf build install log
 ```
 
-## Running SORT
+## Running SORT (See Start Sort for simplified approach)
 
 once everything is built we need to start our nodes:
 
@@ -114,6 +116,9 @@ ros2 run feedback_controller feedback_node
 ```
 
 ### Startup Script on our VM (phri1)
+
+You can use this instead of starting every node by hand and building and refreshing
+
 ```
 cd ~/ros2_ws
 chmod +x start_sort.sh
@@ -139,6 +144,9 @@ ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'tilt'"
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'search'"
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
 ```
+
+Vision Node:
+
 *NOTE*: does not work when running SORT via our startup script.
 
 Manual Topic Pubs:
