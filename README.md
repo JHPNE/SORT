@@ -225,8 +225,17 @@ ros2 run <package-name> <package-entry-point>
 Services are done similarly but are run with a `launch` tag. We will figure out how this is done once we need it. 
 
 ### Start Script
+
+Starts all necessary nodes and the FeedBackModel
 ```
 cd ~/ros2_ws
 chmod +x start_sort.sh
 ./start_sort.sh
 ```
+
+### Simplified Architecture
+
+In `vision_module` AprilTagDetector takes the Input of all connected cameras over the TopicHandler and detects the AprilTags with respect to the camera, which did. The `TagDetectorNode` then publishes `/vision/tag_detections/<camera>`, which we then use in `WorlSpaceNode` and return `vision/tags`.
+
+`TagWorld` and `Zone` are used to determine the Pose of a AprilTag in 3d Space through triangulation and Zone creates a geometry that determine where a Zone is.
+

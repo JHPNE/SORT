@@ -1,26 +1,12 @@
-"""Fuse per-camera tag detections into one world space.
+"""
+WorldSpaceNode
 
-Subscribes /vision/tag_detections/<camera>, triangulates across cameras, and
+Fuse per-camera tag detections into one world space. Subscribes /vision/tag_detections/<camera>, triangulates across cameras, and
 publishes the unified state two ways:
 
   /vision/tags        one aggregate JSON packet per cycle (TagMessages.py)
   TF frames tag_<id>  so anything - rviz, MoveIt, your own code - can ask tf2
                       "where is tag 5 relative to <any frame>"
-
-Reference frame
----------------
-Everything is expressed in `reference_frame`. On the arm, set this to the
-robot base (e.g. base_link) and use_tf:=true: the arm-mounted camera's
-extrinsics then update every cycle from the arm's own TF tree, so tags stay
-correct while the arm moves. With use_tf:=false the hardcoded EXTRINSICS
-table is used and the reference is a (static) camera.
-
-Why a hand-rolled sync buffer instead of message_filters
---------------------------------------------------------
-ApproximateTimeSynchronizer needs a message from EVERY registered topic
-before it fires, so unplugging one camera stalls the whole pipeline. This
-buffer fuses whatever arrived inside the sync window and degrades to fewer
-cameras instead of blocking - and it warns, so degradation is never silent.
 """
 from typing import Dict, List, Tuple
 
@@ -41,8 +27,6 @@ from vision_module.TagRegistry import tag_sizes
 CAMERA_NAMES = ["arm_camera", "realsense_color", "secondary_color"]
 DETECTION_TOPIC_NS = "/vision/tag_detections"
 
-# ref_T_cam, metres. Paste output from extrinsic_calibration.py here.
-# Only used when use_tf:=false.
 EXTRINSICS: Dict[str, np.ndarray] = {
     "arm_camera": np.eye(4),
     "realsense_color": np.eye(4),
@@ -72,10 +56,6 @@ class WorldSpaceNode(Node):
         self.declare_parameter("use_tf", True)
         self.declare_parameter("max_sync_dt", 0.040)   # s, cross-camera window
         self.declare_parameter("max_age", 0.30)        # s, staleness cutoff
-        # If a driver stamps images with a clock that is not this node's
-        # clock (the k4a driver can publish device time), header stamps look
-        # permanently stale. false = sync on arrival time: less accurate,
-        # but it runs.
         self.declare_parameter("trust_stamps", True)
 
         self.camera_names = list(self.get_parameter("camera_names").value)
@@ -133,8 +113,6 @@ class WorldSpaceNode(Node):
                 "in the same place, so triangulation is meaningless. Run "
                 "extrinsic_calibration.py or set use_tf:=true")
 
-    # --------------------------------------------------------------- input
-
     def _make_cb(self, name: str):
         def cb(msg: String):
             try:
@@ -160,8 +138,6 @@ class WorldSpaceNode(Node):
                                TagMessage.to_observations(packet),
                                packet.frame_id)
         return cb
-
-    # -------------------------------------------------------------- fusion
 
     def _refresh_tf(self) -> None:
         """Pull ref_T_cam for each camera from tf2. Runs every cycle, so an
@@ -245,8 +221,6 @@ class WorldSpaceNode(Node):
         (tf.transform.rotation.x, tf.transform.rotation.y,
          tf.transform.rotation.z, tf.transform.rotation.w) = qx, qy, qz, qw
         self.tf_broadcaster.sendTransform(tf)
-
-    # --------------------------------------------------------- diagnostics
 
     def _status(self):
         """Periodic state dump - this tells you which stage is stuck."""

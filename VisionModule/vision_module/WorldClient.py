@@ -47,8 +47,6 @@ class TagWorld:
             self._node.get_logger().error(f"world packet rejected: {e}",
                                           throttle_duration_sec=5.0)
 
-    # ------------------------------------------------------------- queries
-
     @property
     def fresh(self) -> bool:
         """True if we heard from the world node recently."""

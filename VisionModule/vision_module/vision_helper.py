@@ -1,3 +1,10 @@
+"""
+Vision_helper
+
+contains Supported Apriltag Families aliases for different input handling
+and a conversion method for Rotation Matrix (numpy) to ROS Standard (quarternion)
+
+"""
 import numpy as np
 import cv2
 

@@ -1,3 +1,11 @@
+"""
+Zone
+
+contains ZoneSpec = Basic Info over the Zone (name, Id, corners of the APRILTAG, positional arguments)
+ZoneGeometry maps a geometry based on apriltag information/ZoneSpec
+ZoneMap tells us which zone the cube is in? from live TagWorld state. 
+
+"""
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Sequence
 
@@ -267,7 +275,6 @@ class ZoneMap:
         T[:3, 3] = g.centroid + g.normal * hover_m
         return T
 
-    # ------------------------------------------------------------ debugging
 
     def describe(self, cube_ids: Sequence[int]) -> List[str]:
         """Human-readable dump for tag_reader."""
