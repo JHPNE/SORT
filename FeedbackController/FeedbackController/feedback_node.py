@@ -101,6 +101,8 @@ class FeedbackNode(Node):
         self.create_timer(DECISION_PERIOD_S, self._on_decision_tick)
         self.get_logger().info(f'Judging the tag world every {DECISION_PERIOD_S}s')
 
+        self._gestures.home()
+
     # light 
     def set_light(self, entity_id: str, action: str = 'turn_on', **params):
         """Publish a Home Assistant light command as JSON for a HA bridge node to consume."""
