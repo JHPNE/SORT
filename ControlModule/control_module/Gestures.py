@@ -414,6 +414,9 @@ class ArmGestures:
         if tag_pos is None:
             return False
 
+        # Allow MoveIt action server to finish cancelling trajectory and settle
+        time.sleep(1.0)
+
         start = self._tool_pose()
         if start is None:
             return False
