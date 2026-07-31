@@ -85,13 +85,14 @@ class ArmGestures:
         """
         base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        nod_down = list(base); nod_down[4] += 0.30   # Wrist pitch down (+0.30 rad / ~17.2°)
-        nod_up   = list(base); nod_up[4]   -= 0.30   # Wrist pitch up   (-0.30 rad / ~17.2°)
+        nod_down = list(base); nod_down[4] += math.radians(30)
+        nod_up   = list(base); nod_up[4]   -= math.radians(30)
         nod_end  = list(base)                        # Return to base position
 
         sequence = [
             (nod_down, "nod_down"),
             (nod_up,   "nod_up"),
+            (nod_down, "nod_down"),
             (nod_end,  "nod_end"),
         ]
 
@@ -121,17 +122,16 @@ class ArmGestures:
         shake_base = list(orig_base)
         shake_base[3] += math.pi / 2  # Rotate wrist plane 90° for head shake (dq = +1.57 rad)
 
-        left  = list(shake_base); left[4]  += 0.25   # Shake left  (dq = +0.25 rad)
-        right = list(shake_base); right[4] -= 0.25   # Shake right (dq = -0.25 rad)
-
+        left  = list(shake_base); left[4]  += math.radians(30)
+        right = list(shake_base); right[4] -= math.radians(30)
+        
         sequence = [
             (shake_base, "shake_rotate_plane"),
             (left,       "shake_left_1"),
             (right,      "shake_right_1"),
             (left,       "shake_left_2"),
-            (right,      "shake_right_2"),
-            (shake_base, "shake_center"),
-            (orig_base,  "shake_reset_plane"),
+            # (shake_base, "shake_center"),
+            # (orig_base,  "shake_reset_plane"),
         ]
 
         self.move.node.get_logger().info(
@@ -157,17 +157,15 @@ class ArmGestures:
         """
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        rot_right = list(orig_base); rot_right[3] += 0.35   # Rotate joint_4 right (dq = +0.35 rad)
-        rot_left  = list(orig_base); rot_left[3]  -= 0.35   # Rotate joint_4 left  (dq = -0.35 rad)
+        rot_right = list(orig_base); rot_right[3] += math.radians(50)
+        rot_left  = list(orig_base); rot_left[3]  -= math.radians(50)
 
         sequence = [
             (rot_right, "tilt_right_1"),
             (rot_left,  "tilt_left_1"),
             (rot_right, "tilt_right_2"),
-            (rot_left,  "tilt_left_2"),
-            (rot_right, "tilt_right_3"),
-            (rot_left,  "tilt_left_3"),
-            (orig_base, "tilt_center"),
+            # (rot_left,  "tilt_left_2"),
+            # (orig_base, "tilt_center"),
         ]
 
         self.move.node.get_logger().info(
@@ -193,8 +191,8 @@ class ArmGestures:
         sweep_base = list(orig_base)
         sweep_base[3] += math.pi / 2  # Rotate joint_4 90° for horizontal panning
 
-        left  = list(sweep_base); left[4]  -= 0.4   # Pan left  (dq = -0.4 rad)
-        right = list(sweep_base); right[4] += 0.4   # Pan right (dq = +0.4 rad)
+        left  = list(sweep_base); left[4]  -= math.radians(90)
+        right = list(sweep_base); right[4] += math.radians(90)
 
         sequence = [
             (sweep_base, "search_rotate_plane"),
