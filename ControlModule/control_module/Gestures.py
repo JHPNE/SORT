@@ -312,8 +312,8 @@ class ArmGestures:
         sweep_base = list(orig_base)
         sweep_base[3] += math.radians(90)  # Rotate joint_4 90° for horizontal panning
 
-        left  = list(sweep_base); left[4]  -= math.radians(90)
-        right = list(sweep_base); right[4] += math.radians(90)
+        left  = list(sweep_base); left[0]  -= math.radians(90)
+        right = list(sweep_base); right[0] += math.radians(45)
 
         sequence = [
             (sweep_base, "search_rotate_plane"),
