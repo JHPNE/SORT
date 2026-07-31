@@ -12,7 +12,7 @@ USAGE EXAMPLES:
    ros2 run control_module gesture_node --ros-args -p gesture:=home
    ros2 run control_module gesture_node --ros-args -p gesture:=nod
    ros2 run control_module gesture_node --ros-args -p gesture:=tilt
-   ros2 run control_module gesture_node --ros-args -p gesture:=shake -p velocity_scaling:=0.50
+   ros2 run control_module gesture_node --ros-args -p gesture:=shake
 
 2. CONTROL DISPATCHER NODE VIA ROS 2 TOPIC:
    # Terminal 1: Launch GestureNode in execution mode (default):
@@ -50,15 +50,12 @@ class GestureNode(Node):
         self.declare_parameter("planning_group", "manipulator")
         self.declare_parameter("tool_link", "end_effector_link")
         self.declare_parameter("reference_frame", "base_link")
-        self.declare_parameter("velocity_scaling", 0.40)
         self.declare_parameter("gesture", "")            # nod, shake, tilt, search, home
-
         self.declare_parameter("execute", True)          # True = execute by default (False = dry run plan only)
 
         p = self.get_parameter
         self.gesture_param = str(p("gesture").value).strip().lower()
         self.execute = bool(p("execute").value)
-        self.vel_scale = float(p("velocity_scaling").value)
         self._currently_moving: bool = False
 
         self.status_pub = self.create_publisher(Bool, topics.arm.is_moving.name, 10)
@@ -68,8 +65,6 @@ class GestureNode(Node):
             group_name=p("planning_group").value,
             tool_link=p("tool_link").value,
             reference_frame=p("reference_frame").value,
-            velocity_scaling=self.vel_scale,
-            acceleration_scaling=self.vel_scale
         )
 
         self.gestures = ArmGestures(self.move)
@@ -98,9 +93,7 @@ class GestureNode(Node):
     def _execute_gesture_worker(self, name: str):
         self.currently_moving = True
         try:
-            self.gestures.execute_gesture(
-                name, plan_only=not self.execute, velocity_scaling=self.vel_scale
-            )
+            self.gestures.execute_gesture(name, plan_only=not self.execute)
         finally:
             self.currently_moving = False
 
@@ -122,17 +115,16 @@ class GestureNode(Node):
         if self.gesture_param:
             self.get_logger().info(
                 f"Executing parameter gesture '{self.gesture_param}' "
-                f"({'EXECUTE' if self.execute else 'plan only'}) at speed {self.vel_scale:.2f}...")
+                f"({'EXECUTE' if self.execute else 'plan only'})...")
             self.currently_moving = True
             try:
-                self.gestures.execute_gesture(
-                    self.gesture_param, plan_only=not self.execute, velocity_scaling=self.vel_scale)
+                self.gestures.execute_gesture(self.gesture_param, plan_only=not self.execute)
             finally:
                 self.currently_moving = False
         else:
             self.get_logger().info(
                 f"GestureNode active and listening on /arm/gesture topic "
-                f"({'EXECUTE' if self.execute else 'plan only'} mode, speed {self.vel_scale:.2f}). "
+                f"({'EXECUTE' if self.execute else 'plan only'} mode). "
                 f"Press Ctrl+C to exit.")
             while rclpy.ok():
                 time.sleep(1.0)

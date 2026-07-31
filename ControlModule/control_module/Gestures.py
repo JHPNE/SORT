@@ -58,7 +58,7 @@ class ArmGestures:
         }
 
     def execute_gesture(self, name: str, base_joints: Optional[List[float]] = None,
-                        plan_only: bool = False, velocity_scaling: float = 0.40) -> bool:
+                        plan_only: bool = False) -> bool:
         """Dispatch gesture by string name."""
         name_clean = name.strip().lower()
         fn = self._gestures.get(name_clean)
@@ -67,7 +67,12 @@ class ArmGestures:
             self.move.node.get_logger().error(
                 f"Unknown gesture '{name_clean}'. Known gestures: [{known}]")
             return False
-        return fn(base_joints=base_joints, plan_only=plan_only, velocity_scaling=velocity_scaling) if name_clean != 'home' else fn(plan_only=plan_only, velocity_scaling=velocity_scaling)
+
+        if name_clean == 'home':
+            return fn(plan_only=plan_only)
+        if base_joints is not None:
+            return fn(base_joints=base_joints, plan_only=plan_only)
+        return fn(plan_only=plan_only)
 
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
             velocity_scaling: float = 0.40) -> bool:
@@ -99,7 +104,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'nod' completed successfully.")
-        self.home()
+        self.home(plan_only=plan_only)
         return True
 
     def shake(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
@@ -138,7 +143,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'shake' completed successfully.")
-        self.home()
+        self.home(plan_only=plan_only)
         return True
 
     def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
@@ -174,7 +179,7 @@ class ArmGestures:
                 return False
 
         self.move.node.get_logger().info("Gesture 'tilt' completed successfully.")
-        self.home()
+        self.home(plan_only=plan_only)
         return True
 
 
