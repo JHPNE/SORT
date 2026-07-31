@@ -182,6 +182,7 @@ class ArmGestures:
             velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Nodding gesture: pinpoints AprilTag first, then pitches wrist (joint_5) up and down.
+        Aligns joint_4 (wrist roll) to 0.0 rad facing AprilTag before nodding.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'nod'...")
@@ -192,17 +193,21 @@ class ArmGestures:
             else:
                 self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
 
-        base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+        orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        nod_down = list(base); nod_down[4] += math.radians(30)
-        nod_up   = list(base); nod_up[4]   -= math.radians(30)
-        nod_end  = list(base)   # Return to base position
+        # Align joint_4 (wrist roll, index 3) to 0.0 rad so joint_5 pitches vertically facing AprilTag
+        nod_base = list(orig_base)
+        nod_base[3] = 0.0
+
+        nod_down = list(nod_base); nod_down[4] += math.radians(30)
+        nod_up   = list(nod_base); nod_up[4]   -= math.radians(30)
+        nod_end  = list(nod_base)   # Return to base position
 
         sequence = [
+            (nod_base, "nod_align_wrist"),
             (nod_down, "nod_down1"),
             (nod_up,   "nod_up1"),
             (nod_down, "nod_down2"),
-            # (nod_up,   "nod_up2"),
             (nod_end,  "nod_end"),
         ]
 
@@ -222,6 +227,7 @@ class ArmGestures:
               velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Head-shake gesture: pinpoints AprilTag first, then swivels joint_5 left/right.
+        Aligns joint_4 (wrist roll) to +90° (+1.57 rad) facing AprilTag before shaking.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'shake'...")
@@ -234,18 +240,18 @@ class ArmGestures:
 
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
+        # Align joint_4 (index 3) to +90° (+1.57 rad) for horizontal swiveling facing AprilTag
         shake_base = list(orig_base)
-        shake_base[3] += math.pi / 2  # Rotate wrist plane 90° for head shake (dq = +1.57 rad)
+        shake_base[3] = math.pi / 2
 
         left  = list(shake_base); left[4]  += math.radians(30)
         right = list(shake_base); right[4] -= math.radians(30)
 
         sequence = [
-            (shake_base, "shake_rotate_plane"),
+            (shake_base, "shake_align_wrist"),
             (left,       "shake_left_1"),
             (right,      "shake_right_1"),
             (left,       "shake_left_2"),
-            # (right,      "shake_right_2"),
             (shake_base, "shake_center"),
             (orig_base,  "shake_reset_plane"),
         ]
@@ -266,6 +272,7 @@ class ArmGestures:
              velocity_scaling: float = 0.80, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
         Head-tilt gesture: pinpoints AprilTag first, then rotates wrist joint (joint_4).
+        Aligns joint_4 to 0.0 rad facing AprilTag before tilting side-to-side.
         """
         if base_joints is None:
             self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'tilt'...")
@@ -278,15 +285,19 @@ class ArmGestures:
 
         orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
 
-        rot_right = list(orig_base); rot_right[3] += math.radians(50)
-        rot_left  = list(orig_base); rot_left[3]  -= math.radians(50)
+        # Align joint_4 (index 3) to neutral 0.0 rad facing AprilTag
+        tilt_base = list(orig_base)
+        tilt_base[3] = 0.0
+
+        rot_right = list(tilt_base); rot_right[3] += math.radians(50)
+        rot_left  = list(tilt_base); rot_left[3]  -= math.radians(50)
 
         sequence = [
+            (tilt_base, "tilt_align_wrist"),
             (rot_right, "tilt_right_1"),
             (rot_left,  "tilt_left_1"),
             (rot_right, "tilt_right_2"),
-            # (rot_left,  "tilt_left_2"),
-            (orig_base, "tilt_center"),
+            (tilt_base, "tilt_center"),
         ]
 
         self.move.node.get_logger().info(
