@@ -152,6 +152,101 @@ class ArmGestures:
         self.move.node.get_logger().error(f"no TF {ref_frame} <- {tool_link}")
         return None
 
+    def _rotate_pose_local(self, base_pose: PoseStamped,
+                           up_down_angle_deg: float = 0.0,
+                           left_right_angle_deg: float = 0.0,
+                           side_tilt_angle_deg: float = 0.0) -> PoseStamped:
+        """
+        Create a new PoseStamped rotated around local tool axes using pure quaternion math.
+
+        - up_down_angle_deg: Move head up and down (Nodding / Pitch)
+        - left_right_angle_deg: Swivel head left and right (Head Shake / Yaw)
+        - side_tilt_angle_deg: Tilt head side to side (Head Tilt / Roll)
+        """
+        new_pose = PoseStamped()
+        new_pose.header.frame_id = base_pose.header.frame_id
+        new_pose.header.stamp = base_pose.header.stamp
+        new_pose.pose.position.x = base_pose.pose.position.x
+        new_pose.pose.position.y = base_pose.pose.position.y
+        new_pose.pose.position.z = base_pose.pose.position.z
+
+        qx = base_pose.pose.orientation.x
+        qy = base_pose.pose.orientation.y
+        qz = base_pose.pose.orientation.z
+        qw = base_pose.pose.orientation.w
+
+        pr = math.radians(up_down_angle_deg)
+        yr = math.radians(left_right_angle_deg)
+        rr = math.radians(side_tilt_angle_deg)
+
+        sy, cy = math.sin(yr / 2.0), math.cos(yr / 2.0)
+        sp, cp = math.sin(pr / 2.0), math.cos(pr / 2.0)
+        sr, cr = math.sin(rr / 2.0), math.cos(rr / 2.0)
+
+        # Combined local delta quaternion (pitch around Y, yaw around X, roll around Z)
+        dq_w = cr * cp * cy + sr * sp * sy
+        dq_x = cr * cp * sy - sr * sp * cy
+        dq_y = cr * sp * cy + sr * cp * sy
+        dq_z = sr * cp * cy - cr * sp * sy
+
+        new_pose.pose.orientation.w = float(qw * dq_w - qx * dq_x - qy * dq_y - qz * dq_z)
+        new_pose.pose.orientation.x = float(qw * dq_x + qx * dq_w + qy * dq_z - qz * dq_y)
+        new_pose.pose.orientation.y = float(qw * dq_y - qx * dq_z + qy * dq_w + qz * dq_x)
+        new_pose.pose.orientation.z = float(qw * dq_z + qx * dq_y - qy * dq_x + qz * dq_w)
+
+        return new_pose
+
+    def _execute_task_space_gesture(self, gesture_name: str, tag_id: int, plan_only: bool,
+                                   up_down_angle_deg: float = 0.0,
+                                   left_right_angle_deg: float = 0.0,
+                                   side_tilt_angle_deg: float = 0.0) -> bool:
+        """
+        Pinpoints AprilTag and executes a task-space oscillation gesture around local tool axes.
+        Returns True if executed successfully, False otherwise (no fallback).
+        """
+        self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing '{gesture_name}'...")
+        if not self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
+            self.move.node.get_logger().error(f"Pinpointing tag {tag_id} failed for gesture '{gesture_name}'. Aborting.")
+            return False
+
+        start_pose = self._tool_pose()
+        if start_pose is None:
+            self.move.node.get_logger().error(f"Could not get tool pose TF for gesture '{gesture_name}'. Aborting.")
+            return False
+
+        pos1 = self._rotate_pose_local(
+            start_pose,
+            up_down_angle_deg=up_down_angle_deg,
+            left_right_angle_deg=left_right_angle_deg,
+            side_tilt_angle_deg=side_tilt_angle_deg
+        )
+        pos2 = self._rotate_pose_local(
+            start_pose,
+            up_down_angle_deg=-up_down_angle_deg,
+            left_right_angle_deg=-left_right_angle_deg,
+            side_tilt_angle_deg=-side_tilt_angle_deg
+        )
+        end_pose = start_pose
+
+        pose_sequence = [
+            (pos1,     f"{gesture_name}_step1"),
+            (pos2,     f"{gesture_name}_step2"),
+            (pos1,     f"{gesture_name}_step3"),
+            (end_pose, f"{gesture_name}_end"),
+        ]
+
+        self.move.node.get_logger().info(
+            f"Starting task-space gesture '{gesture_name}' ({'plan_only' if plan_only else 'execute'})...")
+
+        for target_pose, label in pose_sequence:
+            if not self.move.go(target_pose, plan_only=plan_only, label=label):
+                self.move.node.get_logger().error(f"Task-space gesture '{gesture_name}' aborted at step '{label}'")
+                return False
+
+        self.move.node.get_logger().info(f"Task-space gesture '{gesture_name}' completed successfully.")
+        self.home()
+        return True
+
     def execute_gesture(self, name: str, base_joints: Optional[List[float]] = None,
                         plan_only: bool = False, velocity_scaling: Optional[float] = None,
                         tag_id: int = DEFAULT_TAG_ID) -> bool:
@@ -181,125 +276,88 @@ class ArmGestures:
     def nod(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
             velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Nodding gesture: pinpoints AprilTag first, then pitches wrist (joint_5) up and down.
+        Nodding gesture: pinpoints AprilTag first, then moves head UP and DOWN in Task Space.
         """
         if base_joints is None:
-            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'nod'...")
-            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
-                current = self.get_current_joints()
-                if current is not None:
-                    base_joints = current
-            else:
-                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
+            return self._execute_task_space_gesture("nod", tag_id, plan_only, up_down_angle_deg=30.0)
 
-        base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
-
-        nod_down = list(base); nod_down[4] += math.radians(30)
-        nod_up   = list(base); nod_up[4]   -= math.radians(30)
-        nod_end  = list(base)   # Return to base position
-
-        sequence = [
-            (nod_down, "nod_down1"),
-            (nod_up,   "nod_up1"),
-            (nod_down, "nod_down2"),
-            # (nod_up,   "nod_up2"),
-            (nod_end,  "nod_end"),
-        ]
-
-        self.move.node.get_logger().info(
-            f"Starting gesture 'nod' ({'plan_only' if plan_only else 'execute'}) at speed {velocity_scaling:.2f}")
-
-        for joint_target, label in sequence:
-            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
-                self.move.node.get_logger().error(f"Gesture 'nod' aborted at step '{label}'")
-                return False
-
-        self.move.node.get_logger().info("Gesture 'nod' completed successfully.")
-        self.home()
-        return True
+        # =====================================================================
+        # LEGACY JOINT-SPACE FALLBACK (DISABLED)
+        # Uncomment below if you want joint-space nodding based on fixed joint angles.
+        # =====================================================================
+        # base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+        # nod_down = list(base); nod_down[4] += math.radians(30)
+        # nod_up   = list(base); nod_up[4]   -= math.radians(30)
+        # nod_end  = list(base)   # Return to base position
+        # sequence = [
+        #     (nod_down, "nod_down1"),
+        #     (nod_up,   "nod_up1"),
+        #     (nod_down, "nod_down2"),
+        #     (nod_end,  "nod_end"),
+        # ]
+        # for joint_target, label in sequence:
+        #     if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
+        #         return False
+        # self.home()
+        # return True
 
     def shake(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
               velocity_scaling: float = 1.0, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Head-shake gesture: pinpoints AprilTag first, then swivels joint_5 left/right.
+        Head-shake gesture: pinpoints AprilTag first, then swivels head LEFT and RIGHT in Task Space.
         """
         if base_joints is None:
-            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'shake'...")
-            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
-                current = self.get_current_joints()
-                if current is not None:
-                    base_joints = current
-            else:
-                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
+            return self._execute_task_space_gesture("shake", tag_id, plan_only, left_right_angle_deg=30.0)
 
-        orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
-
-        shake_base = list(orig_base)
-        shake_base[3] += math.pi / 2  # Rotate wrist plane 90° for head shake (dq = +1.57 rad)
-
-        left  = list(shake_base); left[4]  += math.radians(30)
-        right = list(shake_base); right[4] -= math.radians(30)
-
-        sequence = [
-            (shake_base, "shake_rotate_plane"),
-            (left,       "shake_left_1"),
-            (right,      "shake_right_1"),
-            (left,       "shake_left_2"),
-            # (right,      "shake_right_2"),
-            (shake_base, "shake_center"),
-            (orig_base,  "shake_reset_plane"),
-        ]
-
-        self.move.node.get_logger().info(
-            f"Starting gesture 'shake' ({'plan_only' if plan_only else 'execute'}) at speed {velocity_scaling:.2f}")
-
-        for joint_target, label in sequence:
-            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
-                self.move.node.get_logger().error(f"Gesture 'shake' aborted at step '{label}'")
-                return False
-
-        self.move.node.get_logger().info("Gesture 'shake' completed successfully.")
-        self.home()
-        return True
+        # =====================================================================
+        # LEGACY JOINT-SPACE FALLBACK (DISABLED)
+        # Uncomment below if you want joint-space head-shake based on fixed joint angles.
+        # =====================================================================
+        # orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+        # shake_base = list(orig_base)
+        # shake_base[3] += math.pi / 2
+        # left  = list(shake_base); left[4]  += math.radians(30)
+        # right = list(shake_base); right[4] -= math.radians(30)
+        # sequence = [
+        #     (shake_base, "shake_rotate_plane"),
+        #     (left,       "shake_left_1"),
+        #     (right,      "shake_right_1"),
+        #     (left,       "shake_left_2"),
+        #     (shake_base, "shake_center"),
+        #     (orig_base,  "shake_reset_plane"),
+        # ]
+        # for joint_target, label in sequence:
+        #     if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
+        #         return False
+        # self.home()
+        # return True
 
     def tilt(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
              velocity_scaling: float = 0.80, tag_id: int = DEFAULT_TAG_ID) -> bool:
         """
-        Head-tilt gesture: pinpoints AprilTag first, then rotates wrist joint (joint_4).
+        Head-tilt gesture: pinpoints AprilTag first, then tilts head SIDEWAYS (roll) in Task Space.
         """
         if base_joints is None:
-            self.move.node.get_logger().info(f"Pinpointing tag {tag_id} before executing 'tilt'...")
-            if self.pin_point_tag(tag_id=tag_id, plan_only=plan_only):
-                current = self.get_current_joints()
-                if current is not None:
-                    base_joints = current
-            else:
-                self.move.node.get_logger().warn(f"Pinpointing tag {tag_id} failed. Falling back to NOD_POSITION.")
+            return self._execute_task_space_gesture("tilt", tag_id, plan_only, side_tilt_angle_deg=50.0)
 
-        orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
-
-        rot_right = list(orig_base); rot_right[3] += math.radians(50)
-        rot_left  = list(orig_base); rot_left[3]  -= math.radians(50)
-
-        sequence = [
-            (rot_right, "tilt_right_1"),
-            (rot_left,  "tilt_left_1"),
-            (rot_right, "tilt_right_2"),
-            # (rot_left,  "tilt_left_2"),
-            (orig_base, "tilt_center"),
-        ]
-
-        self.move.node.get_logger().info(
-            f"Starting gesture 'tilt' ({'plan_only' if plan_only else 'execute'}) at speed {velocity_scaling:.2f}")
-
-        for joint_target, label in sequence:
-            if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
-                self.move.node.get_logger().error(f"Gesture 'tilt' aborted at step '{label}'")
-                return False
-
-        self.move.node.get_logger().info("Gesture 'tilt' completed successfully.")
-        self.home()
-        return True
+        # =====================================================================
+        # LEGACY JOINT-SPACE FALLBACK (DISABLED)
+        # Uncomment below if you want joint-space head-tilt based on fixed joint angles.
+        # =====================================================================
+        # orig_base = list(base_joints) if base_joints is not None else list(NOD_POSITION)
+        # rot_right = list(orig_base); rot_right[3] += math.radians(50)
+        # rot_left  = list(orig_base); rot_left[3]  -= math.radians(50)
+        # sequence = [
+        #     (rot_right, "tilt_right_1"),
+        #     (rot_left,  "tilt_left_1"),
+        #     (rot_right, "tilt_right_2"),
+        #     (orig_base, "tilt_center"),
+        # ]
+        # for joint_target, label in sequence:
+        #     if not self.move.go_joint(joint_target, plan_only=plan_only, label=label, velocity_scaling=velocity_scaling):
+        #         return False
+        # self.home()
+        # return True
 
 
     def search(self, base_joints: Optional[List[float]] = None, plan_only: bool = False,
