@@ -16,6 +16,7 @@ from .FeedBackDecisionHandler import (SortState, Verdict,
                                       FeedBackDecisionHandler, parse_state)
 from vision_module.Zone import ZONES
 from vision_module.WorldClient import TagWorld
+import vision_module.TagRegistry as tr
  
 from control_module.GestureClient import GestureClient
 
@@ -69,6 +70,45 @@ RESULT_FEEDBACK: Dict[SortState, FeedbackReaction] = {
         "I do not know where that one belongs. You decide!", 'yellow',
         UnknownFeedBackGesture),
 }
+
+def _cube_name(cube_id: int) -> str:
+    info = tr.info(cube_id)
+    return info.name if info is not None else f'cube {cube_id}'
+
+
+def _zone_label(zone_name: str) -> str:
+    """'PapierZone' -> 'Papier', so the sentence can say 'the Papier zone'."""
+    return zone_name[:-4] if zone_name.endswith('Zone') else zone_name
+
+
+def _join(parts) -> str:
+    parts = list(parts)
+    if len(parts) <= 1:
+        return ''.join(parts)
+    return ', '.join(parts[:-1]) + ' and ' + parts[-1]
+
+
+def describe(verdict: Verdict) -> str:
+    """The line spoken for one verdict: the generic message plus the cubes."""
+    base = RESULT_FEEDBACK[verdict.state].tts_message
+
+    if verdict.misplaced:
+        return base + ' ' + _join(
+            f'the {_cube_name(cid)} cube is in the {_zone_label(where)} zone, '
+            f'but it belongs in the {_zone_label(should)} zone'
+            for cid, (where, should) in sorted(verdict.misplaced.items())) + '.'
+
+    if verdict.unassigned:
+        return base + ' ' + _join(
+            f'the {_cube_name(c)} cube' for c in sorted(verdict.unassigned)
+        ) + ' is not in any zone.'
+
+    if verdict.unknown_cubes:
+        return base + ' ' + _join(
+            f'the {_cube_name(c)} cube' for c in sorted(verdict.unknown_cubes)
+        ) + '.'
+
+    return base
 
 
 class FeedbackNode(Node):
@@ -153,7 +193,7 @@ class FeedbackNode(Node):
  
         self.get_logger().info(
             f'Sorting state: {verdict.state.name} ({verdict.reason})')
-        self._react_to_result(verdict.state)
+        self._react_to_result(verdict.state, verdict)
 
     def _on_sorting_result(self, msg: String):
         """React to a sorting outcome published by hand or by another node."""
@@ -166,19 +206,22 @@ class FeedbackNode(Node):
             return
         self._react_to_result(state)
 
-    def _react_to_result(self, result: SortState):
+    def _react_to_result(self, state: SortState, verdict: Verdict = None):
         """Give the speech and light feedback belonging to one sorting result."""
-        reaction = RESULT_FEEDBACK.get(result)
+        reaction = RESULT_FEEDBACK.get(state)
         if reaction is None:
-            self.get_logger().warning(f'Unknown sorting result: "{result}"')
+            self.get_logger().warning(f'Unknown sorting result: "{state}"')
             return
+
+        text = describe(verdict) if verdict is not None else reaction.tts_message
 
         self.give_feedback(
             light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on',
                    'color_name': reaction.light_color},
-            text=reaction.tts_message,
-            gesture=reaction.gesture(self._gestures),
+            text=text,
+            gesture=reaction.gesture(self._gestures, text),
         )
+        
 
     def give_feedback(self, light: dict = None, text: str = None, gesture: str = None):
         """Convenience helper to trigger multiple feedback modalities at once."""
@@ -193,7 +236,7 @@ class FeedbackNode(Node):
             gesture.handle()
             time.sleep(5)
             self.speak(text)
-            time.sleep(2)
+            time.sleep(3)
             self.set_light(entity_id=LIGHT_ENTITY_ID, action='turn_on', color_name='white')
         except Exception:
             self.get_logger().exception(
