@@ -191,6 +191,8 @@ class FeedbackNode(Node):
             gesture.handle()
             time.sleep(5)
             self.speak(text)
+            time.sleep(2)
+            self.set_light(entity_id=LIGHT_ENTITY_ID, action='turn_on', color_name='white')
         except Exception:
             self.get_logger().exception(
                 f'gesture {type(gesture).__name__} failed')
