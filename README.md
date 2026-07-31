@@ -120,7 +120,7 @@ ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
 
 ### Startup Script on our VM (phri1)
 
-You can use this instead of starting every node by hand and building and refreshing. Make sure to update the path to your VM or Instance before launching the script. The Script is in the SORT folder.
+You can use this instead of starting every node by hand and building and refreshing. Make sure to update the path to your VM or Instance before launching the script. The Script is in the SORT folder. Make also sure that the Repository is within the /ros2_ws workspace before you launch the script.
 
 ```
 chmod +x start_sort.sh
@@ -134,11 +134,6 @@ Gesture Node
 # A) Plan-Only / Dry-Run (Safe - arm does NOT move, MoveIt planning only):
 ros2 run control_module gesture_node --ros-args -p gesture:=nod -p execute:=false
 
-# B) Execute actual physical motion on arm (nod, shake, tilt, search, home):
-ros2 run control_module gesture_node --ros-args -p gesture:=home
-ros2 run control_module gesture_node --ros-args -p gesture:=nod
-ros2 run control_module gesture_node --ros-args -p gesture:=tilt
-ros2 run control_module gesture_node --ros-args -p gesture:=shake
 # or
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'nod'"
 ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'shake'"
@@ -148,8 +143,6 @@ ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
 ```
 
 Vision Node:
-
-*NOTE*: does not work when running SORT via our startup script.
 
 Manual Topic Pubs:
 ``` bash 
