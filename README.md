@@ -113,6 +113,9 @@ ros2 run control_module gesture_node
 # Terminal 4 
 ros2 run feedback_controller feedback_node
 
+# Terminal 5 move arm into home position
+ros2 topic pub --once /arm/gesture std_msgs/msg/String "data: 'home'"
+
 ```
 
 ### Startup Script on our VM (phri1)

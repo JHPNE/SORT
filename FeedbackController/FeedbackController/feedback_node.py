@@ -131,7 +131,7 @@ class FeedbackNode(Node):
             callback=self._on_sorting_result)
 
         self._gestures = GestureClient(self)
-
+        # self._gestures.home()
         # Remember the last verdict so the same feedback is not repeated every tick.
         self._last_key: Optional[tuple] = None
 
@@ -141,7 +141,6 @@ class FeedbackNode(Node):
         self.create_timer(DECISION_PERIOD_S, self._on_decision_tick)
         self.get_logger().info(f'Judging the tag world every {DECISION_PERIOD_S}s')
 
-        self._gestures.home()
 
     # light 
     def set_light(self, entity_id: str, action: str = 'turn_on', **params):
@@ -219,7 +218,7 @@ class FeedbackNode(Node):
             light={'entity_id': LIGHT_ENTITY_ID, 'action': 'turn_on',
                    'color_name': reaction.light_color},
             text=text,
-            gesture=reaction.gesture(self._gestures, text),
+            gesture=reaction.gesture(self._gestures),
         )
         
 
